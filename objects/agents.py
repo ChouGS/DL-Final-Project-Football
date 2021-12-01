@@ -16,11 +16,22 @@ class Player(Agent):
         self.id = id
 
         # The faction the player is in
-        assert role in ['offender', 'defender']
+        assert role in ['QB', 'Tackle_O', 'WR', 'Safety', 'Tackle_D', 'CB']
+        self.isoffender = True if role in ['QB', 'Tackle_O', 'WR'] else False
         self.role = role
+        if self.role == 'CB' or self.role == 'WR' or self.role == 'Safety':
+            self.speed = 125
+        if self.role == 'QB':
+            self.speed = 100
+        if self.role == 'Tackle_O' or self.role == 'Tackle_D':
+            self.speed = 90
 
         # The color used to display the player on the gameyard
-        self.color = [0x00, 0x00, 0xff] if self.role == 'offender' else [0xff, 0x00, 0x00]
+        self.color = [0x00, 0x00, 0xff] if self.isoffender else [0xff, 0x00, 0x00]
+        if self.role == 'WR':
+            self.color = [0xb4, 0x69, 0xff]
+        if self.role == 'Safety':
+            self.color = [0xff, 0xbf, 0x00]
 
         # Whether this player is holding the ball
         self.holding = False
@@ -35,7 +46,7 @@ class Player(Agent):
 
     def mod_holding_state(self, holding, ball=None):
         # Switches whether the player is holding the ball 
-        assert self.role == 'offender'
+        assert self.isoffender
         self.holding = holding
         self.color = [0x00, 0x99, 0xff] if self.holding else [0x00, 0x00, 0xff]
         if self.holding:
@@ -50,22 +61,27 @@ class Player(Agent):
 
         # Decide acceleration penalty 
         min_distance = 1e8
+        closest_role = None
         for player in player_list:
-            if player.role != self.role:
+            if player.isoffender != self.isoffender:
                 min_distance = min(min_distance, ((player.x - self.x) ** 2 + \
                                                   (player.y - self.y) ** 2) ** 0.5)
+                closest_role = player.role
         
-        u_penalty = 0.05 if min_distance > Player.distance_lb else \
-                    0.05 * Player.distance_lb / min_distance
+        u_penalty = 5
+        if min_distance > Player.distance_lb:
+            if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
+                u_penalty = 30 * Player.distance_lb / min_distance
+            elif closest_role == 'CB' or closest_role == 'Safety':
+                u_penalty = 15 * Player.distance_lb / min_distance
+            else:
+                u_penalty = 8 * Player.distance_lb / min_distance
 
         # Generate virtual destinations
         G = np.zeros((N, 2))
         for i in range(N):
             G[i, 0] = r * np.cos(i * 2 * np.pi / (N - 1))
             G[i, 1] = r * np.sin(i * 2 * np.pi / (N - 1))
-
-        # Set max speed for different teams
-        u_max = 100 if self.role == "defender" else 125
 
         # Time interval
         dt = 0.1
@@ -77,8 +93,12 @@ class Player(Agent):
         ZZ_a = np.zeros((N, 4, H))
         for n in range(N):
             g = G[n, :]
-            ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, H, dt, u_max, u_penalty, \
-                                               (0, 500), (0, 400))  # Hard code
+            if self.isoffender:
+                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, H, dt, self.speed, u_penalty, \
+                                                   (-10, 510), (-20, 420))  # Hard code
+            else:
+                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, H, dt, self.speed, u_penalty, \
+                                                   (-30, 530), (-50, 450))  # Hard code
 
         return ZZ_a
 
