@@ -1,4 +1,6 @@
 import numpy as np
+from algorithms.LCPs import LCP_lemke_howson
+from algorithms.trajectory import GenerateTrajectory
 
 class Agent:
     def __init__(self, x, y):
@@ -7,6 +9,7 @@ class Agent:
         self.y = y
 
 class Player(Agent):
+    distance_lb = 10
     def __init__(self, x, y, id, role):
         super(Player, self).__init__(x, y)
 
@@ -40,23 +43,44 @@ class Player(Agent):
         else:
             self.ball = None
         
-    def decision(self, player_list):
+    def trajgen(self, player_list, N):
         # Make a trajectory queue using the information of the position of all players
-        if self.standby:
-            # Players standing by are assumed to stay where they are
-            self.trajectory = np.array([self.x, self.y]).reshape(2, 1).repeat(10, 1)
-        
-        # TODO: Plug in tag game here
-        
+        H = 20      # predictive length
+        r = 700
 
-        # return values: 
-        #     hold: whether the player decides to contuinue to hold the ball
-        #     target_player: the id of the player to receive the ball
-        hold = True
-        target_player = None
-        if not hold:
-            self.ball_pass(self.ball, target_player)
-        return (hold, target_player.id)
+        # Decide acceleration penalty 
+        min_distance = 1e8
+        for player in player_list:
+            if player.role != self.role:
+                min_distance = min(min_distance, ((player.x - self.x) ** 2 + \
+                                                  (player.y - self.y) ** 2) ** 0.5)
+        
+        u_penalty = 0.05 if min_distance > Player.distance_lb else \
+                    0.05 * Player.distance_lb / min_distance
+
+        # Generate virtual destinations
+        G = np.zeros((N, 2))
+        for i in range(N):
+            G[i, 0] = r * np.cos(i * 2 * np.pi / (N - 1))
+            G[i, 1] = r * np.sin(i * 2 * np.pi / (N - 1))
+
+        # Set max speed for different teams
+        u_max = 100 if self.role == "defender" else 125
+
+        # Time interval
+        dt = 0.1
+
+        # Current motion state
+        z_a = np.array([self.x, self.y, 0, 0])
+
+        # Calculate trajectory candidates
+        ZZ_a = np.zeros((N, 4, H))
+        for n in range(N):
+            g = G[n, :]
+            ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, H, dt, u_max, u_penalty, \
+                                               (0, 500), (0, 400))  # Hard code
+
+        return ZZ_a
 
     def motion(self):
         # Dequeue the first upcoming position in trajectory 
