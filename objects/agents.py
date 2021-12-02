@@ -114,6 +114,7 @@ class Player(Agent):
             self.trajectory = self.trajectory[:, 1:]
             if self.trajectory.shape[1] == 0:
                 self.trajectory = None
+        # print(f"{self.id} {self.role} moved to ({self.x}, {self.y})")
 
     def ball_pass(self, ball, target_player):
         # Pass the ball to another player
@@ -163,7 +164,6 @@ class Ball(Agent):
         # TODO: modify the trajectory of the ball to be a straight line from 
         #       the current position to the osition of the target player
         
-
     def motion(self):
         # The ball moves itself only when it is midair
         if self.status == 'midair':

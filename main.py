@@ -2,13 +2,13 @@ import numpy as np
 
 from objects.gameyard import Gameyard
 from objects.agents import Player, Ball
-from algorithms.eval import EvaluateTrajectories, ChooseAction
+from algorithms.eval import EvaluateTrajectories, ChooseAction, EvaluateTrajectoriesForSafety
 from algorithms.LCPs import LCP_lemke_howson
 
 # Initialize game and timer
 N = 16              # number of candidates
 
-num_players = 11
+num_players = 3
 tick = 0
 game = Gameyard(players=num_players)
 game.players[0].mod_holding_state(True, game.ball)
@@ -16,7 +16,7 @@ game.players[0].mod_holding_state(True, game.ball)
 # Game starts
 while (True):
     # Players make their decisions every 3 time steps
-    if tick % 3 == 1:
+    if tick % 3 == 0:
         receipient_id = None
 
         # Generate trajectory proposals
@@ -31,6 +31,7 @@ while (True):
         
         # Calculate cost matrix
         # TODO: Plug in strategy for safety
+
         for p in range(2*num_players):
             for q in range(2*num_players):
                 if game.players[p].isoffender == game.players[q].isoffender:
@@ -41,10 +42,13 @@ while (True):
                             A[p, q, i, j] = EvaluateTrajectories(traj_list[p][i], traj_list[q][j],
                                                                  game.players[p].role, game.players[q].role, 
                                                                  game.players[p].x, aggressive_coef=1)
+                        elif game.players[p].role == 'Safety':
+                            A[p, q, i, j] = EvaluateTrajectoriesForSafety(traj_list[p][i], traj_list[q][j], p, q, i, j, 
+                                                                          traj_list, game.players, game.players[q].x)
                         else:
-                            A[p, q, i, j] = -EvaluateTrajectories(traj_list[p][i], traj_list[q][j], 
-                                                                  game.players[p].role, game.players[q].role, 
-                                                                  game.players[p].x, aggressive_coef=0)
+                            A[p, q, i, j] = EvaluateTrajectories(traj_list[p][i], traj_list[q][j], 
+                                                                 game.players[p].role, game.players[q].role, 
+                                                                 game.players[p].x, aggressive_coef=0)
 
         # Calculate probability of actions between each pair of players
         probs = np.zeros((2*num_players, N))
@@ -62,18 +66,21 @@ while (True):
             game.players[p].trajectory = traj_list[p][action]
 
     # Players and balls move every 1 time step
-    # for player in game.players:
-    #     player.motion()
+    for player in game.players:
+        player.motion()
 
     game.display()
     
     # Check whether the game comes to end
     # TODO: fill this up
-    end, winner = game.judge_end()
+    # end, winner = game.judge_end()
 
-    if end:
-        print(f'Game over, {winner}s win.')
-        break
+    # if end:
+    #     print(f'Game over, {winner}s win.')
+    #     break
+
+    # import pdb
+    # pdb.set_trace()
 
     tick += 1
     if tick == 1000:
