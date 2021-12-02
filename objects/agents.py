@@ -19,10 +19,10 @@ class Player(Agent):
         assert role in ['QB', 'Tackle_O', 'WR', 'Safety', 'Tackle_D', 'CB']
         self.isoffender = True if role in ['QB', 'Tackle_O', 'WR'] else False
         self.role = role
-        if self.role == 'CB' or self.role == 'WR' or self.role == 'Safety':
-            self.speed = 125
-        if self.role == 'QB':
-            self.speed = 100
+        if self.role == 'CB' or self.role == 'WR':
+            self.speed = 200
+        if self.role == 'QB' or self.role == 'Safety':
+            self.speed = 120
         if self.role == 'Tackle_O' or self.role == 'Tackle_D':
             self.speed = 90
 

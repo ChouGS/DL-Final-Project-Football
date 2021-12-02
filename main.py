@@ -8,7 +8,7 @@ from algorithms.LCPs import LCP_lemke_howson
 # Initialize game and timer
 N = 16              # number of candidates
 
-num_players = 3
+num_players = 6
 tick = 0
 game = Gameyard(players=num_players)
 game.players[0].mod_holding_state(True, game.ball)
@@ -55,7 +55,7 @@ while (True):
         for p in range(2*num_players):
             for q in range(2*num_players):
                 if game.players[p].isoffender and not game.players[q].isoffender:
-                    (prob1, prob2) = LCP_lemke_howson(A[p, q], A[q, p])
+                    (prob1, prob2) = LCP_lemke_howson(A[p, q], A[q, p].T)
                     probs[p:p+1] = probs[p:p+1] + prob1.T
                     probs[q:q+1] = probs[q:q+1] + prob2.T
 

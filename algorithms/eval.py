@@ -20,17 +20,17 @@ def EvaluateTrajectories(Za, Zb, role_a, role_b, start_x, mode='1v1', aggressive
                 if Za[1, h] > 400 or Za[1, h] < 0:
                     break
                 max_horizontal_dist = max(max_horizontal_dist, Za[0, h] - start_x)
-            loss = - dist - 100 * aggressive_coef * max_horizontal_dist
+            loss = - dist - aggressive_coef * max_horizontal_dist
 
         elif role_a == 'CB' and role_b == 'WR':
-            # Za: offensive     Zb: defensive
+            # Za: defensive     Zb: offensive 
             H = Za.shape[1]
             dist = np.inf
             for h in range(H):
                 dist_h = np.linalg.norm(Za[0:2, h] - Zb[0:2, h])
                 if dist_h < dist:
                     dist = dist_h
-            loss = -dist
+            loss = dist
 
         # WR/CB-TD/TO pair
         elif role_a == 'WR' and role_b == 'Tackle_D':
@@ -68,7 +68,7 @@ def EvaluateTrajectories(Za, Zb, role_a, role_b, start_x, mode='1v1', aggressive
                 dist_h = np.linalg.norm(Za[0:2, h] - Zb[0:2, h])
                 if dist_h < dist:
                     dist = dist_h
-            loss = -dist
+            loss = dist
 
         elif role_a == 'Tackle_O':
             # Za: offensive     Zb: defensive
@@ -85,7 +85,7 @@ def EvaluateTrajectories(Za, Zb, role_a, role_b, start_x, mode='1v1', aggressive
                     break
                 max_horizontal_dist = max(max_horizontal_dist, Za[0, h] - start_x)
 
-            loss = dist # - 0.1 * aggressive_coef * max_horizontal_dist
+            loss = dist - aggressive_coef * max_horizontal_dist
 
         # QB strategy
         elif role_a == 'QB':
@@ -100,9 +100,7 @@ def EvaluateTrajectories(Za, Zb, role_a, role_b, start_x, mode='1v1', aggressive
                 if Za[1, h] > 400 or Za[1, h] < 0:
                     break
                 max_horizontal_dist = max(max_horizontal_dist, Za[0, h] - start_x)
-            loss = -dist - aggressive_coef * max_horizontal_dist
-
-        # TODO: strategy for safety
+            loss = -dist - 10 * aggressive_coef * max_horizontal_dist
 
         elif role_a == 'WR' and role_b == 'Safety':
             H = Za.shape[1]
@@ -111,7 +109,12 @@ def EvaluateTrajectories(Za, Zb, role_a, role_b, start_x, mode='1v1', aggressive
                 dist_h = np.linalg.norm(Za[0:2, h] - Zb[0:2, h])
                 if dist_h < dist:
                     dist = dist_h
-            loss = -0.01 * dist
+            max_horizontal_dist = -500
+            for h in range(H):
+                if Za[1, h] > 400 or Za[1, h] < 0:
+                    break
+                max_horizontal_dist = max(max_horizontal_dist, Za[0, h] - start_x)
+            loss = -dist - 200 * aggressive_coef * max_horizontal_dist
         
         elif role_a == 'CB' and role_b == 'QB':
             H = Za.shape[1]
@@ -120,7 +123,7 @@ def EvaluateTrajectories(Za, Zb, role_a, role_b, start_x, mode='1v1', aggressive
                 dist_h = np.linalg.norm(Za[0:2, h] - Zb[0:2, h])
                 if dist_h < dist:
                     dist = dist_h
-            loss = -0.01 * dist
+            loss = -dist
 
         return loss
     
@@ -152,10 +155,10 @@ def EvaluateTrajectoriesForSafety(Za, Zb, p, q, i, j, traj_list, players, start_
                 if Zb[1, h] > 400 or Zb[1, h] < 0:
                     break
                 max_horizontal_dist = max(max_horizontal_dist, Zb[0, h] - start_x)
-            loss = a * dist_close + b * max_horizontal_dist - c * dist
+            loss = -a * dist_close - b * max_horizontal_dist + c * dist
 
         else:
-            loss = - EvaluateTrajectories(Zb, Za, 'QB', 'Tackle_D', start_x, mode='1v1')
+            loss = -EvaluateTrajectories(Zb, Za, 'QB', 'Tackle_D', start_x, mode='1v1')
     return loss
 
 
