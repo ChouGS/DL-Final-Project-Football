@@ -8,8 +8,10 @@ from algorithms.LCPs import LCP_lemke_howson
 # Initialize game and timer
 N = 16              # number of candidates
 
-num_players = 6
+num_players = 3
 tick = 0
+mode = '1v1'
+can_pass = True
 game = Gameyard(players=num_players)
 game.players[0].mod_holding_state(True, game.ball)
 
@@ -33,6 +35,8 @@ while (True):
         # TODO: Plug in strategy for safety
 
         for p in range(2*num_players):
+            if game.players[p].standby:
+                continue
             for q in range(2*num_players):
                 if game.players[p].isoffender == game.players[q].isoffender:
                     continue
@@ -68,6 +72,23 @@ while (True):
     # Players and balls move every 1 time step
     for player in game.players:
         player.motion()
+
+    if game.players[0].x > Gameyard.start_line_x:
+        can_pass = False
+        mode = 'mv1'
+
+    # If the offenders still have the right to pass the ball, judge whether they should do so
+    if can_pass:
+        pass_or_not, receiver = game.players[0].pass_or_not(game.players)
+        if pass_or_not:
+            game.players[0].ball_pass(game.ball, game.players[receiver])
+            game.players[receiver].freeze()
+            can_pass = False
+
+    game.ball.motion()
+
+    for player in game.players:
+        player.receive(game.ball)
 
     game.display()
     

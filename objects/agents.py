@@ -10,6 +10,7 @@ class Agent:
 
 class Player(Agent):
     distance_lb = 10
+    pred_len = 20
     def __init__(self, x, y, id, role):
         super(Player, self).__init__(x, y)
 
@@ -32,6 +33,8 @@ class Player(Agent):
             self.color = [0xb4, 0x69, 0xff]
         if self.role == 'Safety':
             self.color = [0xff, 0xbf, 0x00]
+        if self.role == 'QB':
+            self.color = [0x2a, 0x2a, 0xa5]
 
         # Whether this player is holding the ball
         self.holding = False
@@ -48,15 +51,17 @@ class Player(Agent):
         # Switches whether the player is holding the ball 
         assert self.isoffender
         self.holding = holding
-        self.color = [0x00, 0x99, 0xff] if self.holding else [0x00, 0x00, 0xff]
+        self.color = [0x00, 0x99, 0xff] if self.holding else [0x2a, 0x2a, 0xa5]
         if self.holding:
             self.ball = ball
         else:
             self.ball = None
         
     def trajgen(self, player_list, N):
+        if self.standby:
+            return np.repeat(self.trajectory.reshape(1, 4, -1), N, axis=0)
+
         # Make a trajectory queue using the information of the position of all players
-        H = 20      # predictive length
         r = 700
 
         # Decide acceleration penalty 
@@ -90,20 +95,22 @@ class Player(Agent):
         z_a = np.array([self.x, self.y, 0, 0])
 
         # Calculate trajectory candidates
-        ZZ_a = np.zeros((N, 4, H))
+        ZZ_a = np.zeros((N, 4, Player.pred_len))
         for n in range(N):
             g = G[n, :]
             if self.isoffender:
-                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, H, dt, self.speed, u_penalty, \
+                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, self.speed, u_penalty, \
                                                    (-10, 510), (-20, 420))  # Hard code
             else:
-                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, H, dt, self.speed, u_penalty, \
+                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, self.speed, u_penalty, \
                                                    (-30, 530), (-50, 450))  # Hard code
 
         return ZZ_a
 
     def motion(self):
         # Dequeue the first upcoming position in trajectory 
+        if self.standby:
+            return
         if self.trajectory is not None:
             self.x = self.trajectory[0, 0]
             self.y = self.trajectory[1, 0]
@@ -114,8 +121,77 @@ class Player(Agent):
             self.trajectory = self.trajectory[:, 1:]
             if self.trajectory.shape[1] == 0:
                 self.trajectory = None
-        # print(f"{self.id} {self.role} moved to ({self.x}, {self.y})")
 
+
+    def magic_func(self, x):
+        if x > 100:
+            return 0
+        return -91 / 45 * (6 / 455 * x + 7 / 13 + 1 / (6 / 455 * x + 7 / 13)) + 218 / 45
+
+    def pass_or_not(self, player_list, alpha=10, beta=5, gamma=0.001, delta=0, eta=3000):
+        assert self.role == 'QB'
+
+        min_dist_self_def = 1e5
+        for player in player_list:
+            if not player.isoffender:
+                dist = ((player.x - self.x) ** 2 + (player.y - self.y) ** 2) ** 0.5
+                min_dist_self_def = min(min_dist_self_def, dist)
+
+        passing_willness = self.magic_func(min_dist_self_def)
+
+        WR_x = []
+        WR_dist_def = []
+        WR_dist_QB = []
+        WR_min_dist_path = []
+        WR_id = []
+        WR_score = []
+
+        for player in player_list:
+            if player.role != 'WR':
+                continue
+            WR_id.append(player.id)
+            WR_x.append(player.x)
+
+            min_dist_def = 1e5
+            for p in player_list:
+                if p.isoffender:
+                    continue
+                dist = ((player.x - p.x) ** 2 + (player.y - p.y) ** 2) ** 0.5
+                min_dist_def = min(min_dist_def, dist)
+            WR_dist_def.append(min_dist_def)
+
+            WR_dist_QB.append(((player.x - self.x) ** 2 + (player.y - self.y) ** 2) ** 0.5)
+
+            min_dist_path = 1e5
+            for p in player_list:
+                if p.isoffender:
+                    continue
+                a = np.array([p.x - self.x, p.y - self.y])
+                b = np.array([player.x - self.x, player.y - self.y])
+                dist_vec = a.T * (b / np.linalg.norm(b)) * (b / np.linalg.norm(b)) - a
+                
+                dist = np.linalg.norm(dist_vec)
+                
+                min_dist_path = min(dist, min_dist_path)
+            WR_min_dist_path.append(min_dist_path)
+
+            WR_score.append(alpha * WR_dist_def[-1] + delta * WR_min_dist_path[-1] + \
+                            beta * WR_x[-1] - gamma * WR_dist_QB[-1])
+        
+        if len(WR_dist_def) == 0:
+            return False, None
+
+        chosen_WR = np.argmax(np.array(WR_score))
+
+        # Judge no-pass
+        decision = eta * passing_willness - WR_score[chosen_WR]
+        print(eta * passing_willness, WR_score[chosen_WR], decision)
+        if decision > 0:
+            # pass
+            return True, WR_id[chosen_WR]
+        else:
+            return False, None
+            
     def ball_pass(self, ball, target_player):
         # Pass the ball to another player
         assert self.holding
@@ -127,12 +203,12 @@ class Player(Agent):
         # If the player is being passed a ball, 
         # he must immediately abandon his current trajectory
         self.standby = True
-        self.trajectory = np.array([self.x, self.y]).reshape(2, 1).repeat(10, 1)
+        self.trajectory = np.repeat(np.array([self.x, self.y, 0, 0]).reshape(4, 1), 200, axis=1)
 
     def receive(self, ball):
         # Try to catch the ball if its close enough
-        assert self.standby
-        
+        if not self.standby:
+            return 
         tol = 20
         if np.sqrt((self.x - ball.x) ** 2 + (self.y - ball.y) ** 2) <= tol:
             self.mod_holding_state(True, ball)
@@ -150,7 +226,7 @@ class Ball(Agent):
         #     Midair: the ball is on its way to another offensive player
         self.status = 'unallocated'
         self.color = [0x00, 0x00, 0x00]
-
+        self.speed = 10
         # The upcoming trajectory of the ball
         # Can be a 2*N numpy.array or some better structures
         self.trajectory = None
@@ -161,9 +237,12 @@ class Ball(Agent):
 
     def setoff(self, target_player):
         self.mod_status('midair')
-        # TODO: modify the trajectory of the ball to be a straight line from 
-        #       the current position to the osition of the target player
-        
+
+        dt = int(round(((self.x - target_player.x) ** 2 + (self.y - target_player.y) ** 2) ** 0.5 / self.speed))
+        x_traj = np.linspace(self.x, target_player.x, dt)
+        y_traj = np.linspace(self.y, target_player.y, dt)
+        self.trajectory = np.block([[x_traj], [y_traj]])
+
     def motion(self):
         # The ball moves itself only when it is midair
         if self.status == 'midair':

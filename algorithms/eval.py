@@ -20,7 +20,7 @@ def EvaluateTrajectories(Za, Zb, role_a, role_b, start_x, mode='1v1', aggressive
                 if Za[1, h] > 400 or Za[1, h] < 0:
                     break
                 max_horizontal_dist = max(max_horizontal_dist, Za[0, h] - start_x)
-            loss = - dist - aggressive_coef * max_horizontal_dist
+            loss = - dist - 100 * aggressive_coef * max_horizontal_dist
 
         elif role_a == 'CB' and role_b == 'WR':
             # Za: defensive     Zb: offensive 
@@ -100,7 +100,7 @@ def EvaluateTrajectories(Za, Zb, role_a, role_b, start_x, mode='1v1', aggressive
                 if Za[1, h] > 400 or Za[1, h] < 0:
                     break
                 max_horizontal_dist = max(max_horizontal_dist, Za[0, h] - start_x)
-            loss = -dist - 10 * aggressive_coef * max_horizontal_dist
+            loss = -dist - aggressive_coef * max_horizontal_dist
 
         elif role_a == 'WR' and role_b == 'Safety':
             H = Za.shape[1]

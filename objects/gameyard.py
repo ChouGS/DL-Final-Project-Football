@@ -97,7 +97,7 @@ class Gameyard:
 
         # Plot ball if it's being passed
         if self.ball.status == 'midair':
-            cv2.circle(img=self.canvas,
+            cv2.circle(img=canvas,
                        center=(int(self.ball.x + 0.1 * Gameyard.w), int(self.ball.y + 0.15 * Gameyard.h)),
                        radius=Gameyard.w // 150,
                        color=self.ball.color,
