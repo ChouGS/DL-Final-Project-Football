@@ -6,9 +6,9 @@ from algorithms.eval import EvaluateTrajectories, ChooseAction, EvaluateTrajecto
 from algorithms.LCPs import LCP_lemke_howson
 
 # Initialize game and timer
-N = 16              # number of candidates
+N = 12              # number of candidates
 
-num_players = 3
+num_players = 6
 tick = 0
 mode = '1v1'
 can_pass = True
@@ -18,13 +18,13 @@ game.players[0].mod_holding_state(True, game.ball)
 # Game starts
 while (True):
     # Players make their decisions every 3 time steps
-    if tick % 3 == 0:
+    if tick % 5 == 0:
         receipient_id = None
 
         # Generate trajectory proposals
         traj_list = []
         for player in game.players:
-            traj_list.append(player.trajgen(game.players, N))
+            traj_list.append(player.trajgen(game.players, N, mode))
 
         # Decide a trajectory for each player as a Nash equilibrium
 
@@ -44,22 +44,25 @@ while (True):
                     for j in range(N):
                         if game.players[p].isoffender:
                             A[p, q, i, j] = EvaluateTrajectories(traj_list[p][i], traj_list[q][j],
-                                                                 game.players[p].role, game.players[q].role, 
-                                                                 game.players[p].x, aggressive_coef=1)
+                                                                 game.players[p], game.players[q],
+                                                                 mode=mode, aggressive_coef=1)
                         elif game.players[p].role == 'Safety':
-                            A[p, q, i, j] = EvaluateTrajectoriesForSafety(traj_list[p][i], traj_list[q][j], p, q, i, j, 
-                                                                          traj_list, game.players, game.players[q].x)
+                            A[p, q, i, j] = EvaluateTrajectoriesForSafety(traj_list[p][i], traj_list[q][j], p, q, 
+                                                                          traj_list, game.players, mode=mode)
                         else:
                             A[p, q, i, j] = EvaluateTrajectories(traj_list[p][i], traj_list[q][j], 
-                                                                 game.players[p].role, game.players[q].role, 
-                                                                 game.players[p].x, aggressive_coef=0)
+                                                                 game.players[p], game.players[q], 
+                                                                 mode=mode, aggressive_coef=0)
 
         # Calculate probability of actions between each pair of players
         probs = np.zeros((2*num_players, N))
         for p in range(2*num_players):
             for q in range(2*num_players):
                 if game.players[p].isoffender and not game.players[q].isoffender:
-                    (prob1, prob2) = LCP_lemke_howson(A[p, q], A[q, p].T)
+                    # if mode == '1v1':
+                    (prob1, prob2) = LCP_lemke_howson(A[p, q], -A[p, q])
+                    # else:
+                    #     (prob1, prob2) = LCP_lemke_howson(A[p, q], A[q, p].T)
                     probs[p:p+1] = probs[p:p+1] + prob1.T
                     probs[q:q+1] = probs[q:q+1] + prob2.T
 
@@ -83,6 +86,7 @@ while (True):
         if pass_or_not:
             game.players[0].ball_pass(game.ball, game.players[receiver])
             game.players[receiver].freeze()
+            mode = 'mv1'
             can_pass = False
 
     game.ball.motion()

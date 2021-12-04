@@ -2,7 +2,7 @@ import numpy as np
 
 from algorithms.LCPs import LCP
 
-def GenerateTrajectory(z0, goal, H, dt, u_max, u_penalty, bound_x, bound_y):
+def GenerateTrajectory(z0, goal, H, dt, u_max, u_penalty, bound_x, bound_y, bound_v):
     # Generate a trajectory of discrete lenght H,
     # for a pointmass system defined by the state z, starting at
     # position z0, defined to evolve according to the dynamics
@@ -74,6 +74,7 @@ def GenerateTrajectory(z0, goal, H, dt, u_max, u_penalty, bound_x, bound_y):
         lb_z[h * n + 1] = -bound_y[0]
         ub_z[h * n] = bound_x[1]
         ub_z[h * n + 1] = bound_y[1]
+        ub_z[h * n + 2:h * n + 4] = bound_v
 
     # At this point, solving the following QP results in our desired trajectory
     #                                 min_x 0.5*x'*Q*x + x'*q,

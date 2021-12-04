@@ -69,17 +69,9 @@ class Gameyard:
         self.start_line_color = [0x50, 0x00, 0x00]
         self.plot_bg = np.array(self.bg_color).reshape(1, 1, -1)
         self.plot_bg = self.plot_bg.repeat(Gameyard.h, 0).repeat(Gameyard.w, 1)
-        cv2.line(img=self.plot_bg,
-                 pt1=(Gameyard.defensive_line_x, 0), 
-                 pt2=(Gameyard.defensive_line_x, Gameyard.h - 1), 
-                 color=self.defline_color, 
-                 thickness=Gameyard.w // 75)
 
-        cv2.line(img=self.plot_bg,
-                 pt1=(Gameyard.start_line_x, 0), 
-                 pt2=(Gameyard.start_line_x, Gameyard.h - 1), 
-                 color=self.start_line_color, 
-                 thickness=Gameyard.w // 75)
+        self.plot_bg[:, Gameyard.defensive_line_x - 4:Gameyard.defensive_line_x + 5, :] = self.defline_color
+        self.plot_bg[:, Gameyard.start_line_x - 4:Gameyard.start_line_x + 5, :] = self.start_line_color
 
         canvas = np.ones((int(1.3 * Gameyard.h), int(1.2 * Gameyard.w), 3), dtype=np.int32) * 200
         canvas[int(0.15 * Gameyard.h):int(1.15 * Gameyard.h) + 1, int(0.1 * Gameyard.w):int(1.1 * Gameyard.w)] = self.plot_bg

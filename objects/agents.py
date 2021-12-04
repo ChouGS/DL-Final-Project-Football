@@ -10,7 +10,7 @@ class Agent:
 
 class Player(Agent):
     distance_lb = 10
-    pred_len = 20
+    pred_len = 10
     def __init__(self, x, y, id, role):
         super(Player, self).__init__(x, y)
 
@@ -20,9 +20,9 @@ class Player(Agent):
         assert role in ['QB', 'Tackle_O', 'WR', 'Safety', 'Tackle_D', 'CB']
         self.isoffender = True if role in ['QB', 'Tackle_O', 'WR'] else False
         self.role = role
-        if self.role == 'CB' or self.role == 'WR':
+        if self.role == 'CB' or self.role == 'WR' or self.role == 'Safety':
             self.speed = 200
-        if self.role == 'QB' or self.role == 'Safety':
+        if self.role == 'QB':
             self.speed = 120
         if self.role == 'Tackle_O' or self.role == 'Tackle_D':
             self.speed = 90
@@ -57,7 +57,7 @@ class Player(Agent):
         else:
             self.ball = None
         
-    def trajgen(self, player_list, N):
+    def trajgen(self, player_list, N, mode):
         if self.standby:
             return np.repeat(self.trajectory.reshape(1, 4, -1), N, axis=0)
 
@@ -73,20 +73,36 @@ class Player(Agent):
                                                   (player.y - self.y) ** 2) ** 0.5)
                 closest_role = player.role
         
-        u_penalty = 5
-        if min_distance > Player.distance_lb:
+        u_penalty = 0.1
+        if min_distance < Player.distance_lb:
             if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
-                u_penalty = 30 * Player.distance_lb / min_distance
+                u_penalty = 0.6 * Player.distance_lb / min_distance
             elif closest_role == 'CB' or closest_role == 'Safety':
-                u_penalty = 15 * Player.distance_lb / min_distance
+                u_penalty = 0.3 * Player.distance_lb / min_distance
             else:
-                u_penalty = 8 * Player.distance_lb / min_distance
+                u_penalty = 0.2 * Player.distance_lb / min_distance
+
+        # Set v_bound
+        v_bound = self.speed * np.sin(np.pi / (2 * Player.distance_lb) * min_distance) \
+                      if min_distance < Player.distance_lb else self.speed
+        if mode == 'mv1' and not self.isoffender:
+            v_bound *= 1.5
+        acceleration = self.speed / 3 if mode == '1v1' or self.isoffender else self.speed / 2
 
         # Generate virtual destinations
         G = np.zeros((N, 2))
-        for i in range(N):
-            G[i, 0] = r * np.cos(i * 2 * np.pi / (N - 1))
-            G[i, 1] = r * np.sin(i * 2 * np.pi / (N - 1))
+        if self.isoffender:
+            for i in range(-4, 5):     
+                G[(i + N) % N, 0] = r * np.cos(i * 2 * np.pi / 16) + self.x
+                G[(i + N) % N, 1] = r * np.sin(i * 2 * np.pi / 16) + self.y
+            
+            for i in range(5, 8):
+                G[i, 0] = r * np.cos((i * 2 - 4) * 2 * np.pi / 16) + self.x
+                G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
+        else:
+            for i in range(N):
+                G[i, 0] = r * np.cos(i * 2 * np.pi / N) + self.x
+                G[i, 1] = r * np.sin(i * 2 * np.pi / N) + self.y
 
         # Time interval
         dt = 0.1
@@ -99,11 +115,11 @@ class Player(Agent):
         for n in range(N):
             g = G[n, :]
             if self.isoffender:
-                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, self.speed, u_penalty, \
-                                                   (-10, 510), (-20, 420))  # Hard code
+                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
+                                                   (-10, 510), (-20, 420), v_bound)  # Hard code
             else:
-                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, self.speed, u_penalty, \
-                                                   (-30, 530), (-50, 450))  # Hard code
+                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
+                                                   (-30, 530), (-50, 450), v_bound)  # Hard code
 
         return ZZ_a
 
@@ -122,13 +138,12 @@ class Player(Agent):
             if self.trajectory.shape[1] == 0:
                 self.trajectory = None
 
-
     def magic_func(self, x):
         if x > 100:
             return 0
         return -91 / 45 * (6 / 455 * x + 7 / 13 + 1 / (6 / 455 * x + 7 / 13)) + 218 / 45
 
-    def pass_or_not(self, player_list, alpha=10, beta=5, gamma=0.001, delta=0, eta=3000):
+    def pass_or_not(self, player_list, alpha=8, beta=5, gamma=0.001, delta=0, eta=3000):
         assert self.role == 'QB'
 
         min_dist_self_def = 1e5
@@ -184,8 +199,13 @@ class Player(Agent):
         chosen_WR = np.argmax(np.array(WR_score))
 
         # Judge no-pass
-        decision = eta * passing_willness - WR_score[chosen_WR]
-        print(eta * passing_willness, WR_score[chosen_WR], decision)
+        decision = -eta * (0.8 - passing_willness) + WR_score[chosen_WR]
+        print(f"Passing_willness: {-eta * (0.8 - passing_willness)}\n" + \
+              f"WR_score_total: {WR_score[chosen_WR]}\n" + \
+              f"dist_to_def: {alpha * WR_dist_def[chosen_WR]}\tdist_to_QB: {gamma * WR_dist_QB[chosen_WR]}\n" + \
+              f"dist_to_path: {delta * WR_min_dist_path[chosen_WR]}\tmax_x: {beta * WR_x[chosen_WR]}\n" + \
+              f"decision: {decision}")
+
         if decision > 0:
             # pass
             return True, WR_id[chosen_WR]
@@ -226,7 +246,7 @@ class Ball(Agent):
         #     Midair: the ball is on its way to another offensive player
         self.status = 'unallocated'
         self.color = [0x00, 0x00, 0x00]
-        self.speed = 10
+        self.speed = 25
         # The upcoming trajectory of the ball
         # Can be a 2*N numpy.array or some better structures
         self.trajectory = None
