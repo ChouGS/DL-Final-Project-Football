@@ -72,7 +72,7 @@ def EvaluateTrajectories(Za, Zb, player_a, player_b, mode='1v1', aggressive_coef
                 dist_h = np.linalg.norm(Za[0:2, h] - Zb[0:2, h])
                 if dist_h < dist:
                     dist = dist_h
-            loss = 0.1 * dist if role_b == 'Tackle_O' else dist
+            loss = 0.001 * dist if role_b == 'Tackle_O' else dist
 
         elif role_a == 'Tackle_O':
             # Za: offensive     Zb: defensive
@@ -83,13 +83,13 @@ def EvaluateTrajectories(Za, Zb, player_a, player_b, mode='1v1', aggressive_coef
                 if dist_h < dist:
                     dist = dist_h
 
-            max_horizontal_dist = -500
-            for h in range(H):
-                if Za[1, h] > 400 or Za[1, h] < 0:
-                    break
-                max_horizontal_dist = max(max_horizontal_dist, Za[0, h] - start_x)
+            # max_horizontal_dist = -500
+            # for h in range(H):
+            #     if Za[1, h] > 400 or Za[1, h] < 0:
+            #         break
+            #     max_horizontal_dist = max(max_horizontal_dist, Za[0, h] - start_x)
 
-            loss = 0.1 * dist if role_b == 'Tackle_D' else dist
+            loss = 0.001 * dist if role_b == 'Tackle_D' else dist
             # loss = dist # - 0.1 * aggressive_coef * max_horizontal_dist
 
         # QB strategy
@@ -177,7 +177,7 @@ def EvaluateTrajectories(Za, Zb, player_a, player_b, mode='1v1', aggressive_coef
                     dist_h = np.linalg.norm(Za[0:2, h] - Zb[0:2, h])
                     if dist_h < dist:
                         dist = dist_h
-                loss = 1e6
+                loss = 1e8 / dist
 
     return loss
     
@@ -229,7 +229,7 @@ def EvaluateTrajectoriesForSafety(Za, Zb, p, q, traj_list, players, mode='1v1', 
                 dist_h = np.linalg.norm(Za[0:2, h] - Zb[0:2, h])
                 if dist_h < dist:
                     dist = dist_h
-            loss = 1e6
+            loss = -dist
 
     return loss
 
@@ -241,3 +241,6 @@ def ChooseAction(probs):
     for a in range(N):
         if r <= cumulative[a]:
             return a
+
+def LoseBallProb(x):
+    return 21 / (20 * (x + 1)) - 1 / 20

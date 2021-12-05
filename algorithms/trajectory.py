@@ -70,8 +70,8 @@ def GenerateTrajectory(z0, goal, H, dt, u_max, u_penalty, bound_x, bound_y, boun
 
     # Constrain position of pointmass to lie within box
     for h in range(H):
-        lb_z[h * n] = -bound_x[0]
-        lb_z[h * n + 1] = -bound_y[0]
+        lb_z[h * n] = bound_x[0]
+        lb_z[h * n + 1] = bound_y[0]
         ub_z[h * n] = bound_x[1]
         ub_z[h * n + 1] = bound_y[1]
         ub_z[h * n + 2:h * n + 4] = bound_v

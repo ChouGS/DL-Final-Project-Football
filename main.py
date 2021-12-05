@@ -1,8 +1,10 @@
 import numpy as np
+import random
+import time
 
 from objects.gameyard import Gameyard
 from objects.agents import Player, Ball
-from algorithms.eval import EvaluateTrajectories, ChooseAction, EvaluateTrajectoriesForSafety
+from algorithms.eval import EvaluateTrajectories, ChooseAction, EvaluateTrajectoriesForSafety, LoseBallProb
 from algorithms.LCPs import LCP_lemke_howson
 
 # Initialize game and timer
@@ -14,6 +16,7 @@ mode = '1v1'
 can_pass = True
 game = Gameyard(players=num_players)
 game.players[0].mod_holding_state(True, game.ball)
+game.ball.mod_status('held')
 
 # Game starts
 while (True):
@@ -81,32 +84,43 @@ while (True):
         mode = 'mv1'
 
     # If the offenders still have the right to pass the ball, judge whether they should do so
+    hard_end = None    
+    cause = ''
     if can_pass:
-        pass_or_not, receiver = game.players[0].pass_or_not(game.players)
+        pass_or_not, receiver, min_dist_def = game.players[0].pass_or_not(game.players)
         if pass_or_not:
+            lose_prob = LoseBallProb(min_dist_def)
+            p = random.random()
+            print(f'pass: {round(p, 3)}, prob: {round(lose_prob, 3)}')
+            if p <= lose_prob:
+                # Passing failure, defensive win
+                hard_end = 'defensive'
+                cause = 'passing failed'
             game.players[0].ball_pass(game.ball, game.players[receiver])
             game.players[receiver].freeze()
             mode = 'mv1'
             can_pass = False
 
-    game.ball.motion()
-
     for player in game.players:
-        player.receive(game.ball)
+        if cause == '':
+            rec_success = player.receive(game.ball, game.players)
+            if not rec_success:
+                hard_end = 'defensive'
+                cause = 'receiving failed'
 
-    game.display()
-    
     # Check whether the game comes to end
     # TODO: fill this up
-    # end, winner = game.judge_end()
+    end, winner, cause = game.judge_end(hard_end, cause)
 
-    # if end:
-    #     print(f'Game over, {winner}s win.')
-    #     break
+    if end:
+        print(f'Game over, {cause}, {winner} win.')
+        break
 
-    # import pdb
-    # pdb.set_trace()
+    game.display()
+
+    game.ball.motion()
 
     tick += 1
     if tick == 1000:
         break
+    time.sleep(0.5)

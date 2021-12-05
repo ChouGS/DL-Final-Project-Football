@@ -1,6 +1,9 @@
 import numpy as np
+import random
+
 from algorithms.LCPs import LCP_lemke_howson
 from algorithms.trajectory import GenerateTrajectory
+from algorithms.eval import LoseBallProb
 
 class Agent:
     def __init__(self, x, y):
@@ -58,6 +61,7 @@ class Player(Agent):
             self.ball = None
         
     def trajgen(self, player_list, N, mode):
+        breaking = False
         if self.standby:
             return np.repeat(self.trajectory.reshape(1, 4, -1), N, axis=0)
 
@@ -74,19 +78,28 @@ class Player(Agent):
                 closest_role = player.role
         
         u_penalty = 0.1
-        if min_distance < Player.distance_lb:
-            if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
-                u_penalty = 0.6 * Player.distance_lb / min_distance
-            elif closest_role == 'CB' or closest_role == 'Safety':
-                u_penalty = 0.3 * Player.distance_lb / min_distance
-            else:
-                u_penalty = 0.2 * Player.distance_lb / min_distance
+        if mode == '1v1':
+            if min_distance < Player.distance_lb:
+                if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
+                    u_penalty = 0.6 * Player.distance_lb / min_distance
+                elif closest_role == 'CB' or closest_role == 'Safety':
+                    u_penalty = 0.3 * Player.distance_lb / min_distance
+                else:
+                    u_penalty = 0.2 * Player.distance_lb / min_distance
+        if mode == 'mv1':
+            if min_distance < Player.distance_lb:
+                if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
+                    u_penalty = 0.6 * Player.distance_lb / min_distance
+                elif closest_role == 'CB' or closest_role == 'Safety':
+                    u_penalty = 0.4 * Player.distance_lb / min_distance
+                else:
+                    u_penalty = 0.1 * Player.distance_lb / min_distance
 
         # Set v_bound
         v_bound = self.speed * np.sin(np.pi / (2 * Player.distance_lb) * min_distance) \
                       if min_distance < Player.distance_lb else self.speed
-        if mode == 'mv1' and not self.isoffender:
-            v_bound *= 1.5
+        # if mode == 'mv1' and not self.isoffender:
+        #     v_bound *= 2
         acceleration = self.speed / 3 if mode == '1v1' or self.isoffender else self.speed / 2
 
         # Generate virtual destinations
@@ -100,9 +113,41 @@ class Player(Agent):
                 G[i, 0] = r * np.cos((i * 2 - 4) * 2 * np.pi / 16) + self.x
                 G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
         else:
-            for i in range(N):
-                G[i, 0] = r * np.cos(i * 2 * np.pi / N) + self.x
-                G[i, 1] = r * np.sin(i * 2 * np.pi / N) + self.y
+            if mode == '1v1':
+                for i in range(N):
+                    G[i, 0] = r * np.cos(i * 2 * np.pi / N) + self.x
+                    G[i, 1] = r * np.sin(i * 2 * np.pi / N) + self.y
+            else:                
+                try:
+                    for j in range(len(player_list)):
+                        if player_list[j].holding:
+                            nbclass = j
+                    dist_nbclass = ((player_list[nbclass].x-self.x) ** 2 + (player_list[nbclass].y-self.y) ** 2) ** 0.5
+                    
+                    if dist_nbclass > 100:
+                        for i in range(N):
+                            G[i, 0] = player_list[nbclass].x + 20 + i * 10
+                            
+                            if player_list[nbclass].y - self.y >= 0:
+                                G[i, 1] = player_list[nbclass].y + 100 #- 10 - i * 5
+                            else:
+                                G[i, 1] = player_list[nbclass].y - 100 #- 10 - (N - i) * 5
+                            
+                    else:
+                        for i in range(N):
+                            G[i, 0] = player_list[nbclass].x + 20 + (i * 5) * dist_nbclass / 100
+                            if player_list[nbclass].y - self.y >= 0:
+                                G[i, 1] = player_list[nbclass].y + 100 #- 10 - (i * 1) * dist_nbclass / 100
+                            else:
+                                G[i, 1] = player_list[nbclass].y - 100 #- 10 - ((N - i) * 1) * dist_nbclass / 100
+                    # print('y',player_list[nbclass].y)
+                    # print('ya',player_list[nbclass].y - self.y)
+                    # print(G[i, 1])
+                    breaking = True
+                except:
+                    for i in range(N):
+                        G[i, 0] = r * np.cos(i * 2 * np.pi / N) + self.x
+                        G[i, 1] = r * np.sin(i * 2 * np.pi / N) + self.y
 
         # Time interval
         dt = 0.1
@@ -143,7 +188,7 @@ class Player(Agent):
             return 0
         return -91 / 45 * (6 / 455 * x + 7 / 13 + 1 / (6 / 455 * x + 7 / 13)) + 218 / 45
 
-    def pass_or_not(self, player_list, alpha=8, beta=5, gamma=0.001, delta=0, eta=3000):
+    def pass_or_not(self, player_list, alpha=8, beta=5, gamma=0.001, delta=0, eta=6000):
         assert self.role == 'QB'
 
         min_dist_self_def = 1e5
@@ -208,9 +253,9 @@ class Player(Agent):
 
         if decision > 0:
             # pass
-            return True, WR_id[chosen_WR]
+            return True, WR_id[chosen_WR], min_dist_self_def
         else:
-            return False, None
+            return False, None, None
             
     def ball_pass(self, ball, target_player):
         # Pass the ball to another player
@@ -225,16 +270,34 @@ class Player(Agent):
         self.standby = True
         self.trajectory = np.repeat(np.array([self.x, self.y, 0, 0]).reshape(4, 1), 200, axis=1)
 
-    def receive(self, ball):
+    def receive(self, ball, player_list):
         # Try to catch the ball if its close enough
         if not self.standby:
-            return 
+            return True
+
         tol = 20
         if np.sqrt((self.x - ball.x) ** 2 + (self.y - ball.y) ** 2) <= tol:
+            min_dist_self_def = 1e5
+            for player in player_list:
+                if not player.isoffender:
+                    dist = ((player.x - self.x) ** 2 + (player.y - self.y) ** 2) ** 0.5
+                    min_dist_self_def = min(min_dist_self_def, dist)
+
+            lose_prob = LoseBallProb(min_dist_self_def)
+            p = random.random()
+            print(f'rec: {round(p, 3)}, prob: {round(lose_prob, 3)}')
+            if p <= lose_prob:
+                # Passing failure, defensive win
+                return False
+
             self.mod_holding_state(True, ball)
             ball.mod_status('held')
             self.standby = False
 
+            return True
+
+        return True
+        
 
 class Ball(Agent):
     def __init__(self, x, y):

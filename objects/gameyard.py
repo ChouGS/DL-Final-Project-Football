@@ -50,17 +50,8 @@ class Gameyard:
             if i == 1:
                 self.players.append(Player(300, 175, len(self.players), 'Safety'))
 
-        # # players: number of players on each side
-        # if players == 1:
-        #     self.players = [Player(100, 200, 0, 'QB'),
-        #                     Player(300, 200, 1, 'Safety')]
-        # else:
-        #     self.players = [Player(100, 200, 0, 'QB')]
-        #     player_y = np.linspace(100, 300, players - 1)
-        #     self.players += [Player(150, player_y[i], i, random.choice(['Tackle_O', 'WR'])) for i in range(players - 1)]
-        #     self.players += [Player(250, player_y[i], players + i, 'Tackle_D') for i in range(players - 1)] 
-        #     self.players.append(Player(300, 200, 0, 'Safety'))
         self.ball = Ball(-1, -1)
+        self.bodytouch_streak = 0
         
     def display(self):
         # Background figure for visualization
@@ -100,28 +91,40 @@ class Gameyard:
         
         cv2.imwrite(f'{len(self.players) // 2}v{len(self.players) // 2}.jpg', canvas)
     
-    def judge_end(self):
+    def judge_end(self, hard_end=None, cause=''):
         # Judge if the game should end
+        if hard_end is not None:
+            return (True, hard_end, cause)
 
-        # Condition for offensive win: the offensive player holding the ball 
-        # is beyond the defensive line
+        # Condition for offensive win: 
+        # the offensive player holding the ball is beyond the defensive line
         for player in self.players:
             if player.isoffender and player.holding:
                 if player.x > Gameyard.defensive_line_x:
-                    return (True, 'offensive')
+                    return (True, 'offensive', 'touchdown')
         
-        # Condition for defensive win: at least one defensive player 
-        # is close enough to the ball 
-        tol = 5
-        for player in self.players:
-            if not player.isoffender:
-                if np.sqrt((player.x - self.ball.x) ** 2 + (player.y - self.ball.y) ** 2) <= tol:
-                    return (True, 'defensive')
+        # Condition for defensive win: 
+        # 1. defensive player keeps bodytouch with the ball holder for long enough
+        # 2. ball holder runs oout of bound
+        # 3. ball pass/receiving fails
+        tol = 20
+        bodytouch = False
+        if self.ball.status == 'held':
+            for player in self.players:
+                if not player.isoffender:
+                    if np.sqrt((player.x - self.ball.x) ** 2 + (player.y - self.ball.y) ** 2) <= tol:
+                        bodytouch = True
+                        self.bodytouch_streak += 1
+                        if self.bodytouch_streak >= 50:
+                            return (True, 'defensive', 'ball holder tackled')
+            if not bodytouch:
+                self.bodytouch_streak = 0
         
         if self.ball.y < 0 or self.ball.y > Gameyard.h:
-            return (True, 'defensive')
+            return (True, 'defensive', 'ball holder out of yard')
+        
         # No winner yet: game continues
-        return (False, '')
+        return (False, '', '')
 
 
 if __name__ == '__main__':
