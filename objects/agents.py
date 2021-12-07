@@ -37,7 +37,7 @@ class Player(Agent):
         if self.role == 'Safety':
             self.color = [0xff, 0xbf, 0x00]
         if self.role == 'QB':
-            self.color = [0x2a, 0x2a, 0xa5]
+            self.color = [0x00, 0x99, 0xff]
 
         # Whether this player is holding the ball
         self.holding = False
@@ -54,13 +54,13 @@ class Player(Agent):
         # Switches whether the player is holding the ball 
         assert self.isoffender
         self.holding = holding
-        self.color = [0x00, 0x99, 0xff] if self.holding else [0x2a, 0x2a, 0xa5]
+        self.color = [0x2a, 0x2a, 0xa5] if self.holding else [0x00, 0x99, 0xff]
         if self.holding:
             self.ball = ball
         else:
             self.ball = None
         
-    def trajgen(self, player_list, N, mode):
+    def trajgen(self, player_list, N, mode, control_pattern):
         breaking = False
         if self.standby:
             return np.repeat(self.trajectory.reshape(1, 4, -1), N, axis=0)
@@ -78,26 +78,47 @@ class Player(Agent):
                 closest_role = player.role
         
         u_penalty = 0.1
-        if mode == '1v1':
-            if min_distance < Player.distance_lb:
-                if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
-                    u_penalty = 0.6 * Player.distance_lb / min_distance
-                elif closest_role == 'CB' or closest_role == 'Safety':
-                    u_penalty = 0.3 * Player.distance_lb / min_distance
-                else:
-                    u_penalty = 0.2 * Player.distance_lb / min_distance
-        if mode == 'mv1':
-            if min_distance < Player.distance_lb:
-                if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
-                    u_penalty = 0.6 * Player.distance_lb / min_distance
-                elif closest_role == 'CB' or closest_role == 'Safety':
-                    u_penalty = 0.4 * Player.distance_lb / min_distance
-                else:
-                    u_penalty = 0.1 * Player.distance_lb / min_distance
+        if control_pattern == 'L':
+            if mode == '1v1':
+                if min_distance < Player.distance_lb:
+                    if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
+                        u_penalty = 0.6 * Player.distance_lb / min_distance
+                    elif closest_role == 'CB' or closest_role == 'Safety':
+                        u_penalty = 0.3 * Player.distance_lb / min_distance
+                    else:
+                        u_penalty = 0.2 * Player.distance_lb / min_distance
+            if mode == 'mv1':
+                if min_distance < Player.distance_lb:
+                    if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
+                        u_penalty = 0.6 * Player.distance_lb / min_distance
+                    elif closest_role == 'CB' or closest_role == 'Safety':
+                        u_penalty = 0.4 * Player.distance_lb / min_distance
+                    else:
+                        u_penalty = 0.1 * Player.distance_lb / min_distance
 
+        elif control_pattern == 'H':
+            if mode == '1v1':
+                if min_distance < Player.distance_lb:
+                    if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
+                        u_penalty = 1.2 * Player.distance_lb / min_distance
+                    elif closest_role == 'CB' or closest_role == 'Safety':
+                        u_penalty = 0.6 * Player.distance_lb / min_distance
+                    else:
+                        u_penalty = 0.4 * Player.distance_lb / min_distance
+            if mode == 'mv1':
+                if min_distance < Player.distance_lb:
+                    if closest_role == 'Tackle_D' or closest_role == 'Tackle_O':
+                        u_penalty = 1.2 * Player.distance_lb / min_distance
+                    elif closest_role == 'CB' or closest_role == 'Safety':
+                        u_penalty = 0.8 * Player.distance_lb / min_distance
+                    else:
+                        u_penalty = 0.2 * Player.distance_lb / min_distance
+        else:
+            raise ValueError("control_pattern must be either 'H' or 'L'.")
+            
         # Set v_bound
         v_bound = self.speed * np.sin(np.pi / (2 * Player.distance_lb) * min_distance) \
-                      if min_distance < Player.distance_lb else self.speed
+                    if min_distance < Player.distance_lb else self.speed
         # if mode == 'mv1' and not self.isoffender:
         #     v_bound *= 2
         acceleration = self.speed / 3 if mode == '1v1' or self.isoffender else self.speed / 2
@@ -188,7 +209,20 @@ class Player(Agent):
             return 0
         return -91 / 45 * (6 / 455 * x + 7 / 13 + 1 / (6 / 455 * x + 7 / 13)) + 218 / 45
 
-    def pass_or_not(self, player_list, alpha=8, beta=5, gamma=0.001, delta=0, eta=6000):
+    def pass_or_not(self, player_list, passing_pattern):
+        if passing_pattern == 'H':
+            alpha = 50
+            beta = 0.5
+            gamma = 0.001
+            eta = 40000
+        elif passing_pattern == 'L':
+            alpha = 8
+            beta = 5
+            gamma = 0.001
+            eta = 6000
+        else:
+            raise ValueError("passing_pattern must be either 'H' or 'L'.")
+
         assert self.role == 'QB'
 
         min_dist_self_def = 1e5
@@ -202,7 +236,6 @@ class Player(Agent):
         WR_x = []
         WR_dist_def = []
         WR_dist_QB = []
-        WR_min_dist_path = []
         WR_id = []
         WR_score = []
 
@@ -222,21 +255,7 @@ class Player(Agent):
 
             WR_dist_QB.append(((player.x - self.x) ** 2 + (player.y - self.y) ** 2) ** 0.5)
 
-            min_dist_path = 1e5
-            for p in player_list:
-                if p.isoffender:
-                    continue
-                a = np.array([p.x - self.x, p.y - self.y])
-                b = np.array([player.x - self.x, player.y - self.y])
-                dist_vec = a.T * (b / np.linalg.norm(b)) * (b / np.linalg.norm(b)) - a
-                
-                dist = np.linalg.norm(dist_vec)
-                
-                min_dist_path = min(dist, min_dist_path)
-            WR_min_dist_path.append(min_dist_path)
-
-            WR_score.append(alpha * WR_dist_def[-1] + delta * WR_min_dist_path[-1] + \
-                            beta * WR_x[-1] - gamma * WR_dist_QB[-1])
+            WR_score.append(alpha * WR_dist_def[-1] + beta * WR_x[-1] - gamma * WR_dist_QB[-1])
         
         if len(WR_dist_def) == 0:
             return False, None
@@ -245,11 +264,6 @@ class Player(Agent):
 
         # Judge no-pass
         decision = -eta * (0.8 - passing_willness) + WR_score[chosen_WR]
-        print(f"Passing_willness: {-eta * (0.8 - passing_willness)}\n" + \
-              f"WR_score_total: {WR_score[chosen_WR]}\n" + \
-              f"dist_to_def: {alpha * WR_dist_def[chosen_WR]}\tdist_to_QB: {gamma * WR_dist_QB[chosen_WR]}\n" + \
-              f"dist_to_path: {delta * WR_min_dist_path[chosen_WR]}\tmax_x: {beta * WR_x[chosen_WR]}\n" + \
-              f"decision: {decision}")
 
         if decision > 0:
             # pass

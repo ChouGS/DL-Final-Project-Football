@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import os
 import random
 from objects.agents import Ball, Player
 from matplotlib import pyplot
@@ -9,7 +10,7 @@ class Gameyard:
     h = 400
     defensive_line_x = 400
     start_line_x = 200
-    def __init__(self, players=1):
+    def __init__(self, game_id, prefix, players=1):
         role_dict = {
             'QB':       [-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             'WR':       [-1, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2],
@@ -18,7 +19,7 @@ class Gameyard:
             'CB':       [-1, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2],
             'Tackle_D': [-1, 0, 0, 1, 2, 3, 3, 4, 5, 6, 6, 7]
         }
-
+        self.id = game_id
         # offensive init
         self.players = [Player(125, 200, 0, 'QB')]
         for i in range(role_dict['WR'][players]):
@@ -53,7 +54,9 @@ class Gameyard:
         self.ball = Ball(-1, -1)
         self.bodytouch_streak = 0
         
-    def display(self):
+        self.prefix = prefix
+        
+    def display(self, t):
         # Background figure for visualization
         self.bg_color = [0x00, 0xee, 0x00]
         self.defline_color = [0x00, 0xdd, 0xdd]
@@ -89,7 +92,8 @@ class Gameyard:
         # TODO: formal figure display
         # cv2.imshow('2v2', self.plot_bg)
         
-        cv2.imwrite(f'{len(self.players) // 2}v{len(self.players) // 2}.jpg', canvas)
+        os.makedirs(f'results/{self.prefix}/{self.id}', exist_ok=True)
+        cv2.imwrite(f'results/{self.prefix}/{self.id}/{self.prefix}_{self.id}_{t}_{len(self.players) // 2}v{len(self.players) // 2}.jpg', canvas)
     
     def judge_end(self, hard_end=None, cause=''):
         # Judge if the game should end
@@ -101,7 +105,7 @@ class Gameyard:
         for player in self.players:
             if player.isoffender and player.holding:
                 if player.x > Gameyard.defensive_line_x:
-                    return (True, 'offensive', 'touchdown')
+                    return (True, 'offender', 'touchdown')
         
         # Condition for defensive win: 
         # 1. defensive player keeps bodytouch with the ball holder for long enough
@@ -115,13 +119,13 @@ class Gameyard:
                     if np.sqrt((player.x - self.ball.x) ** 2 + (player.y - self.ball.y) ** 2) <= tol:
                         bodytouch = True
                         self.bodytouch_streak += 1
-                        if self.bodytouch_streak >= 50:
-                            return (True, 'defensive', 'ball holder tackled')
+                        if self.bodytouch_streak >= 20:
+                            return (True, 'defender', 'holder tackled')
             if not bodytouch:
                 self.bodytouch_streak = 0
         
         if self.ball.y < 0 or self.ball.y > Gameyard.h:
-            return (True, 'defensive', 'ball holder out of yard')
+            return (True, 'defender', 'holder out')
         
         # No winner yet: game continues
         return (False, '', '')
