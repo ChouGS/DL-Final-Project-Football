@@ -2,7 +2,7 @@ import numpy as np
 
 def EvaluateTrajectories(Za, Zb, player_a, player_b, mode, offender_pattern):
     if offender_pattern == 'H':
-        aggressive_coef = 0.001
+        aggressive_coef = 100
     elif offender_pattern == 'L':
         aggressive_coef = 1
     else:
