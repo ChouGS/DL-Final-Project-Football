@@ -109,9 +109,9 @@ def LCP_lemke_howson(A, B, max_iters=50):
                     np.vstack(( np.zeros((n,o)), -B.T)), np.vstack(( -A, np.zeros((m,m)) )), -np.ones(( n+p,1 )) ))
     
     row = T.shape[0]
-    col = T[:,row]
+    col = T[:, row]
     tp = -np.inf
-    for i,j in enumerate(col):
+    for i, j in enumerate(col):
         if j != 0 and j > tp:
             tp = j
             q_ind = i

@@ -119,8 +119,6 @@ class Player(Agent):
         # Set v_bound
         v_bound = self.speed * np.sin(np.pi / (2 * Player.distance_lb) * min_distance) \
                     if min_distance < Player.distance_lb else self.speed
-        # if mode == 'mv1' and not self.isoffender:
-        #     v_bound *= 2
         acceleration = self.speed / 3 if mode == '1v1' or self.isoffender else self.speed / 2
 
         # Generate virtual destinations
