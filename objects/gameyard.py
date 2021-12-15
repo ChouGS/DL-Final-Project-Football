@@ -74,6 +74,14 @@ class Gameyard:
         # Output file name prefix
         self.prefix = prefix
         
+        # Set up video writer
+        os.makedirs(f"results/{self.prefix}/{self.id}/frames", exist_ok=True)
+        self.vw = cv2.VideoWriter(f"results/{self.prefix}/{self.id}/demo.mp4",
+                                  cv2.VideoWriter_fourcc("m", "p", "4", "v"),
+                                  10,
+                                  (int(1.2 * Gameyard.w), int(1.3 * Gameyard.h)),
+                                  True)
+
     def display(self, t):
         '''
             t: int, current time step
@@ -119,8 +127,9 @@ class Gameyard:
 
         # Write image        
         os.makedirs(f'results/{self.prefix}/{self.id}', exist_ok=True)
-        cv2.imwrite(f'results/{self.prefix}/{self.id}/{self.prefix}_{self.id}_{t}_{len(self.players) // 2}v{len(self.players) // 2}.jpg', canvas)
-    
+        cv2.imwrite(f'results/{self.prefix}/{self.id}/frames/{self.prefix}_{self.id}_{t}_{len(self.players) // 2}v{len(self.players) // 2}.jpg', canvas)
+        img = cv2.imread(f'results/{self.prefix}/{self.id}/frames/{self.prefix}_{self.id}_{t}_{len(self.players) // 2}v{len(self.players) // 2}.jpg')
+        self.vw.write(img)    
 
     def judge_end(self, hard_end=None, cause=''):
         '''

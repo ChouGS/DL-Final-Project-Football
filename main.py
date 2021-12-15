@@ -1,6 +1,8 @@
 import numpy as np
 import random
 import time
+import cv2
+import os
 import argparse
 
 from objects.gameyard import Gameyard
@@ -13,7 +15,7 @@ from algorithms.LCPs import LCP_lemke_howson
 # Initialize game and timer
 parser = argparse.ArgumentParser()
 parser.add_argument("-ns", "--num_sims", help="[Optional] number of game simulations, 1 by default.", \
-                    type=int, default=100)
+                    type=int, default=1)
 parser.add_argument("-np", "--num_players", help="[Optional] number of players ON EACH TEAM, 6 by default.", \
                     type=int, default=6)
 parser.add_argument("-nc", "--num_traj_cand", help="[Optional] number of candidate trajectories for each player, 12 by default.", \
@@ -164,6 +166,9 @@ for iter in range(num_sims):
             break
         time.sleep(0.5)
 
+    # Make video
+    game.vw.release()
+    
     # Clean the previous game
     del game
 

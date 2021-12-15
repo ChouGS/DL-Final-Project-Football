@@ -163,4 +163,3 @@ def LCP_lemke_howson(A, B, max_iters=50):
     y = vars[row+n:] / sum(vars[row+n:])[0]
     
     return (x,y)
-

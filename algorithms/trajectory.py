@@ -129,4 +129,3 @@ def GenerateTrajectory(z0, goal, H, dt, u_max, u_penalty, bound_x, bound_y, boun
     for h in range(H):
         Z[:, h] = z_opt[h*n:(h+1)*n].reshape(-1)
     return Z
-

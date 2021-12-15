@@ -56,4 +56,3 @@ class Result:
         f = open(self.outp_dir, 'w')
         f.write(msg)
         f.close()
-
