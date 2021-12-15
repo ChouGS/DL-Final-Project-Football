@@ -27,17 +27,18 @@ parser.add_argument("-cp", "--control_pattern", help="[Optional] High-level cont
 args = parser.parse_args()
 
 # Hyper-parameters
-num_players = args.num_players
-num_sims = args.num_sims
-N = args.num_traj_cand
-offender_pattern = args.offender_pattern
-passing_pattern = args.passing_pattern
-control_pattern = args.control_pattern
+num_players = args.num_players              # Number of players on each team
+num_sims = args.num_sims                    # The number of simulations (separate games) to be simulated
+N = args.num_traj_cand                      # The number of candidate trajectories for each player
+offender_pattern = args.offender_pattern    # The OP settings
+passing_pattern = args.passing_pattern      # The PP settings
+control_pattern = args.control_pattern      # The CP settings
 
 # Initialize result recorder
 display_prefix = f"o{offender_pattern}p{passing_pattern}c{control_pattern}"
 recorder = Result(f"results/{display_prefix}/results.txt")
 
+# Simulation starts...
 for iter in range(num_sims):
     print(f"Simulating game {iter+1}/{num_sims} ...")
     
@@ -68,8 +69,6 @@ for iter in range(num_sims):
             A = np.zeros((2*num_players, 2*num_players, N, N))
             
             # Calculate cost matrix
-            # TODO: Plug in strategy for safety
-
             for p in range(2*num_players):
                 if game.players[p].standby:
                     continue
@@ -84,7 +83,7 @@ for iter in range(num_sims):
                                                                     mode, offender_pattern)
                             elif game.players[p].role == 'Safety':
                                 A[p, q, i, j] = EvaluateTrajectoriesForSafety(traj_list[p][i], traj_list[q][j], p, q, 
-                                                                            traj_list, game.players, mode)
+                                                                              traj_list, game.players, mode)
                             else:
                                 A[p, q, i, j] = EvaluateTrajectories(traj_list[p][i], traj_list[q][j], 
                                                                     game.players[p], game.players[q], 
@@ -123,6 +122,7 @@ for iter in range(num_sims):
         if can_pass:
             pass_or_not, receiver, min_dist_def = game.players[0].pass_or_not(game.players, passing_pattern)
             if pass_or_not:
+                # Probability check for ballpass failure
                 lose_prob = LoseBallProb(min_dist_def)
                 p = random.random()
                 print("Ball passed!")
@@ -136,6 +136,7 @@ for iter in range(num_sims):
                 mode = 'mv1'
                 can_pass = False
 
+        # If the passing is done successfully, the receiver tries to catch the ball
         for player in game.players:
             if cause == '':
                 rec_success = player.receive(game.ball, game.players)
@@ -144,24 +145,27 @@ for iter in range(num_sims):
                     hard_end = 'defender'
                     cause = 'receiving failure'
 
-        # Check whether the game comes to end
-        # TODO: fill this up
+        # Check whether the game comes to end. If so, end with results
         end, winner, cause = game.judge_end(hard_end, cause)
-
         if end:
             print(f'Game over, {cause}, {winner} win.')
             recorder.record(winner, cause)
             break
 
+        # Do visualization
         game.display(tick)
 
+        # Ball motion if it is midair
         game.ball.motion()
 
+        # Time lapse
         tick += 1
         if tick == 300:
             break
         time.sleep(0.5)
 
+    # Clean the previous game
     del game
 
+# Store the statistics for simulation result
 recorder.summary()

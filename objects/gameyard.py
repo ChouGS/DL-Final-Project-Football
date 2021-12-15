@@ -6,11 +6,22 @@ from objects.agents import Ball, Player
 from matplotlib import pyplot
 
 class Gameyard:
-    w = 500
-    h = 400
-    defensive_line_x = 400
-    start_line_x = 200
+    
+    w = 500                     # The width of the gameyard
+    h = 400                     # The height of the gameyard
+    defensive_line_x = 400      # The x coordinate of the touchdown line
+    start_line_x = 200          # The x coordinate of the scrimmage
+
     def __init__(self, game_id, prefix, players=1):
+        '''
+            game_id: int, game ID
+            prefix: str, output file name prefix
+            players: int, number of players onn each team
+            -------------------------------------------------------
+            Initialization of gameyard.
+        '''
+
+        # Number of different positions for different {players} settings
         role_dict = {
             'QB':       [-1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             'WR':       [-1, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2],
@@ -19,8 +30,11 @@ class Gameyard:
             'CB':       [-1, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2],
             'Tackle_D': [-1, 0, 0, 1, 2, 3, 3, 4, 5, 6, 6, 7]
         }
+
+        # Game ID. Only used for output file naming
         self.id = game_id
-        # offensive init
+
+        # Create offenders
         self.players = [Player(125, 200, 0, 'QB')]
         for i in range(role_dict['WR'][players]):
             if i == 0:
@@ -31,7 +45,7 @@ class Gameyard:
         for i in range(role_dict['Tackle_O'][players]):
             self.players.append(Player(180, player_y[i], len(self.players), 'Tackle_O'))
 
-        # defensive init
+        # Create defenders
         for i in range(role_dict['CB'][players]):
             if i == 0:
                 self.players.append(Player(225, 325, len(self.players), 'CB'))
@@ -51,12 +65,22 @@ class Gameyard:
             if i == 1:
                 self.players.append(Player(300, 175, len(self.players), 'Safety'))
 
+        # Create the ball
         self.ball = Ball(-1, -1)
+
+        # The stamina for the ball holder
         self.bodytouch_streak = 0
         
+        # Output file name prefix
         self.prefix = prefix
         
     def display(self, t):
+        '''
+            t: int, current time step
+            -----------------------------------------
+            Visualization for time step t.
+        '''
+
         # Background figure for visualization
         self.bg_color = [0x00, 0xee, 0x00]
         self.defline_color = [0x00, 0xdd, 0xdd]
@@ -64,9 +88,13 @@ class Gameyard:
         self.plot_bg = np.array(self.bg_color).reshape(1, 1, -1)
         self.plot_bg = self.plot_bg.repeat(Gameyard.h, 0).repeat(Gameyard.w, 1)
 
+        # The touchdown line
         self.plot_bg[:, Gameyard.defensive_line_x - 4:Gameyard.defensive_line_x + 5, :] = self.defline_color
+
+        # The scrimmage
         self.plot_bg[:, Gameyard.start_line_x - 4:Gameyard.start_line_x + 5, :] = self.start_line_color
 
+        # The canvas to put players
         canvas = np.ones((int(1.3 * Gameyard.h), int(1.2 * Gameyard.w), 3), dtype=np.int32) * 200
         canvas[int(0.15 * Gameyard.h):int(1.15 * Gameyard.h) + 1, int(0.1 * Gameyard.w):int(1.1 * Gameyard.w)] = self.plot_bg
         
@@ -89,14 +117,20 @@ class Gameyard:
                        color=self.ball.color,
                        thickness=Gameyard.w // 120)
 
-        # TODO: formal figure display
-        # cv2.imshow('2v2', self.plot_bg)
-        
+        # Write image        
         os.makedirs(f'results/{self.prefix}/{self.id}', exist_ok=True)
         cv2.imwrite(f'results/{self.prefix}/{self.id}/{self.prefix}_{self.id}_{t}_{len(self.players) // 2}v{len(self.players) // 2}.jpg', canvas)
     
+
     def judge_end(self, hard_end=None, cause=''):
-        # Judge if the game should end
+        '''
+            hard_end: str, the winner of the game if it must be ended
+            cause: str, the reason the game must be ended.
+            -------------------------------------------------------------
+            Judge if the game should end
+        '''
+
+        # Test for hard ends
         if hard_end is not None:
             return (True, hard_end, cause)
 
@@ -129,19 +163,3 @@ class Gameyard:
         
         # No winner yet: game continues
         return (False, '', '')
-
-
-if __name__ == '__main__':
-    game_id = 0
-
-    # Sample game 1
-    game1 = Gameyard(11)
-    game1.display()
-
-    # Sample game 2
-    game2 = Gameyard(10)
-    game2.display()
-
-    # Sample game 3
-    game3 = Gameyard(9)
-    game3.display()

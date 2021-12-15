@@ -3,10 +3,22 @@ import numpy as np
 from algorithms.LCPs import LCP
 
 def GenerateTrajectory(z0, goal, H, dt, u_max, u_penalty, bound_x, bound_y, bound_v):
-    # Generate a trajectory of discrete lenght H,
-    # for a pointmass system defined by the state z, starting at
-    # position z0, defined to evolve according to the dynamics
-    # z_{t+1} = A z_{t} + B u_{t}
+    '''
+        z0: [x, y, vx, vy] tuple, the current status of the player
+        goal: N * 2, the coordinates of the preset target points
+        H: int, length of generated trajectories
+        dt: real, the frequency used for simulating the dynamics
+        u_max: real, boundaries for the accelerations
+        u_penalty: real, acceleration penalties for too-close opponents
+        bound_x: (real, real), boundaries of the x coordinates along the generated trajectory
+        bound_y: (real, real), boundaries of the y coordinates along the generated trajectory
+        bound_v: (real, real), boundaries of the velocity along the generated trajectory
+        -----------------------------------------------------------------------------------------
+        Generate a trajectory of discrete lenght H,
+        for a pointmass system defined by the state z, starting at
+        position z0, defined to evolve according to the dynamics
+        z_{t+1} = A z_{t} + B u_{t}
+    '''
 
     n = 4
     m = 2
@@ -87,11 +99,6 @@ def GenerateTrajectory(z0, goal, H, dt, u_max, u_penalty, bound_x, bound_y, boun
     QQ_u = Q_u + D.T.dot(Q_z.dot(D))
     qq_u = q_u + D.T.dot(Q_z.dot(d)+q_z)
 
-    # lb_z <= Du + d <= ub_z
-    # lb_z -d <= Du <= ub_z - d
-
-    # Du + d - lb_z >= 0
-    # -Du - d + ub_z >= 0
     # But only want to grab dimensions which have non-infinite upper or lower bounds:
 
     G = np.vstack([D, -D])
@@ -104,11 +111,7 @@ def GenerateTrajectory(z0, goal, H, dt, u_max, u_penalty, bound_x, bound_y, boun
     # Now reduced QP can be solved instead:
     #                                min_u 0.5*u'*QQ_u*u + u'*qq_u
     # s.t. bound constraints l       lb_u <= u <= ub_u
-    #      inequality constraints    G*u + g >= 0
-
-    # TODO Convert this QP into an LCP, and find the resultant solution u^* by solving the LCP via Lemke's method
-    # Hint: consider a change of variable v = u-lb_u
-    
+    #      inequality constraints    G*u + g >= 0    
     
     M = np.vstack((QQ_u, G, -np.eye(len(qq_u))))
     M_r = np.hstack((-G.T,np.eye(len(qq_u))))

@@ -1,5 +1,12 @@
 class Result:
     def __init__(self, outp_dir):
+        '''
+            output_dir: str, the directory to store final results
+            ---------------------------------------------------------
+            Initialization of a result recorder.
+        '''
+
+        # Statistics for the number and cause of victories for each team
         self.result_dict = {
             'offender': {
                 'touchdown': 0
@@ -11,14 +18,29 @@ class Result:
                 'holder out': 0
             }
         }
+
+        # Total number of simulations
         self.turns = 0
+
+        # Output directory
         self.outp_dir = outp_dir
     
     def record(self, winner, cause):
+        '''
+            winner: choose{'offender', 'defender'}, the winner
+            cause: str, why they won
+            ---------------------------------------------------------
+            Add a simulation record.
+        '''
         self.result_dict[winner][cause] += 1
         self.turns += 1
 
     def summary(self):
+        '''
+            ---------------------------------------------------------
+            Print & write the statistics
+        '''
+
         def_wins = sum(self.result_dict['defender'].values())
         msg = f"In a total of {self.turns} games:\n" + \
               f"\tOffender wins: {self.result_dict['offender']['touchdown']}\n" + \
