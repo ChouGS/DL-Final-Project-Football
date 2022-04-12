@@ -394,7 +394,6 @@ class Player(Agent):
             # Probability check for losing the ball
             lose_prob = LoseBallProb(min_dist_self_def)
             p = random.random()
-            print(f'rec: {round(p, 3)}, prob: {round(lose_prob, 3)}')
             if p <= lose_prob:
                 # Receiving failure, defensive win
                 return False

@@ -19,4 +19,5 @@ For example, if you wish to run an experiment for 100 games with `offender_patte
 ```bash
 ./main.py -ns 100 -op H -pp L -cp H
 ```
+
 LHL11.mp4 is a sample video for the result at indicating '-ns 1 -np 11 -op L -pp H -cp L'.

@@ -1,16 +1,13 @@
 import numpy as np
 import random
-import time
-import cv2
 import os
+import itertools
 import argparse
 
 from objects.gameyard import Gameyard
-from objects.agents import Player, Ball
 from objects.results import Result
 from algorithms.eval import EvaluateTrajectories, ChooseAction, EvaluateTrajectoriesForSafety, LoseBallProb
 from algorithms.LCPs import LCP_lemke_howson
-
 
 # Initialize game and timer
 parser = argparse.ArgumentParser()
@@ -23,9 +20,12 @@ parser.add_argument("-nc", "--num_traj_cand", help="[Optional] number of candida
 parser.add_argument("-op", "--offender_pattern", help="[Optional] High-level control of aggressive coef, must be 'H' or 'L'. 'L' by default.", \
                     choices=['H', 'L'], default='L')
 parser.add_argument("-pp", "--passing_pattern", help="[Optional] High-level control of passing decision coef, must be 'H' or 'L'. 'L' by default.", \
-                    choices=['H', 'L'], default='L')
+                    choices=['H', 'L'], default='H')
 parser.add_argument("-cp", "--control_pattern", help="[Optional] High-level control of u_penalty settings, must be 'H' or 'L'. 'L' by default.", \
                     choices=['H', 'L'], default='L')
+parser.add_argument("-l", "--log", help="Whether to write out log files", default=False)
+parser.add_argument("-v", "--video", help="Whether to write out videos", default=False)
+parser.add_argument("-d", "--gen_data", help="Whether to generate labeled data", default=True)
 args = parser.parse_args()
 
 # Hyper-parameters
@@ -35,22 +35,39 @@ N = args.num_traj_cand                      # The number of candidate trajectori
 offender_pattern = args.offender_pattern    # The OP settings
 passing_pattern = args.passing_pattern      # The PP settings
 control_pattern = args.control_pattern      # The CP settings
+logging = args.log
+video = args.video
+gen_data = args.gen_data
+
+# Data collector
+os.makedirs('cls_dataset_1tick/after_passing', exist_ok=True)
+os.makedirs('cls_dataset_1tick/before_passing', exist_ok=True)
+data_cnt_ap = 0
+data_cnt_bp = 0
+existing_num = 0
+for fname in os.listdir('cls_dataset_1tick/after_passing'):
+    existing_num = max(existing_num, int(fname.split('.')[0]) + 1)
+
 
 # Initialize result recorder
 display_prefix = f"o{offender_pattern}p{passing_pattern}c{control_pattern}"
-recorder = Result(f"results/{display_prefix}/results.txt")
+if logging:
+    recorder = Result(f"results/{display_prefix}/results.txt")
 
 # Simulation starts...
 for iter in range(num_sims):
     print(f"Simulating game {iter+1}/{num_sims} ...")
-    
+    if gen_data:
+        data_bp = None
+        data_ap = None
+
     # Initialize clock and game mode
     tick = 0
     mode = '1v1'
     can_pass = True
 
     # Create gameyard
-    game = Gameyard(game_id=iter+1, players=num_players, prefix=display_prefix)
+    game = Gameyard(game_id=iter+1, prefix=display_prefix, video=video, players=num_players)
     game.players[0].mod_holding_state(True, game.ball)
     game.ball.mod_status('held')
 
@@ -110,6 +127,52 @@ for iter in range(num_sims):
                 action = ChooseAction(prob)
                 game.players[p].trajectory = traj_list[p][action]
 
+            # Generate data
+            if gen_data:
+                # IMPORTANT: Data structure
+                # 0-2: (x, y, dist) of teammate 1, ... till 27-29
+                # 30-32: (x, y, dist) of rival 1, ..., till 60-62
+                # 63-64: (x, y) of ball
+                # 65-66: (x, y) of self
+                # 67-70: self next decision (dx, dy, vx, vy)
+                # 71: label
+                players_xy = [[game.players[i].x, game.players[i].y] for i in range(2 * num_players)]
+                pxy_perm = list(itertools.permutations(players_xy, 2))
+
+                for i in range(2 * num_players):
+                    pxy_perm.insert(23 * i, ([0, 0], [0, 0]))
+
+                players_xy = np.array(players_xy)
+                pxy_perm_1 = np.array([pxy_perm[i][0] for i in range(len(pxy_perm))])   # (N * N) * 2
+                pxy_perm_2 = np.array([pxy_perm[i][1] for i in range(len(pxy_perm))])   # (N * N) * 2
+                dist_flatten = np.sqrt(np.sum(np.power(pxy_perm_1 - pxy_perm_2, 2), 1))
+                dist_matrix = dist_flatten.reshape((2 * num_players, 2 * num_players))
+                dist_matrix[:num_players, :num_players] *= -1
+                dist_matrix[num_players:2*num_players, num_players:2*num_players] *= -1
+
+                new_data_item = np.zeros((22, 72))
+                for i in range(2*num_players):
+                    others_idx = list(range(2 * num_players))
+                    others_idx.remove(i)
+                    new_data_item[i, 0:63:3] = players_xy[others_idx, 0]
+                    new_data_item[i, 1:63:3] = players_xy[others_idx, 1]
+                    new_data_item[i, 2:63:3] = dist_matrix[i, others_idx]
+                    new_data_item[i, 63] = game.ball.x
+                    new_data_item[i, 64] = game.ball.y
+                    new_data_item[i, 65:67] = players_xy[i]
+                    new_data_item[i, 67:71] = game.players[i].trajectory[:, 0]            
+
+                if can_pass:
+                    if data_bp is None:
+                        data_bp = new_data_item
+                    else:
+                        data_bp = np.concatenate([data_bp, new_data_item], 0)
+                else:
+                    if data_ap is None:
+                        data_ap = new_data_item
+                    else:
+                        data_ap = np.concatenate([data_ap, new_data_item], 0)
+
         # Players and balls move every 1 time step
         for player in game.players:
             player.motion()
@@ -128,7 +191,7 @@ for iter in range(num_sims):
                 lose_prob = LoseBallProb(min_dist_def)
                 p = random.random()
                 print("Ball passed!")
-                print(f'pass: {round(p, 3)}, prob: {round(lose_prob, 3)}')
+                # print(f'pass: {round(p, 3)}, prob: {round(lose_prob, 3)}')
                 if p <= lose_prob:
                     # Passing failure, defender win
                     hard_end = 'defender'
@@ -151,11 +214,23 @@ for iter in range(num_sims):
         end, winner, cause = game.judge_end(hard_end, cause)
         if end:
             print(f'Game over, {cause}, {winner} win.')
-            recorder.record(winner, cause)
+            if logging:
+                recorder.record(winner, cause)
+            if gen_data:
+                data_bp[:, -1] = game.ball.x
+                data_ap[:, -1] = game.ball.x
+                data_cnt_ap += data_ap.shape[0]
+                data_cnt_bp += data_bp.shape[0]
+                np.save(f'cls_dataset_1tick/after_passing/{iter+existing_num}.npy', data_ap)
+                np.save(f'cls_dataset_1tick/before_passing/{iter+existing_num}.npy', data_bp)
+                print(f'Simulation {iter+1}/{num_sims} done.')
+                print(f'After passing data +{data_ap.shape[0]}, total {data_cnt_ap}')
+                print(f'Before passing data +{data_bp.shape[0]}, total {data_cnt_bp}')
             break
 
         # Do visualization
-        game.display(tick)
+        if video:
+            game.display(tick)
 
         # Ball motion if it is midair
         game.ball.motion()
@@ -163,14 +238,25 @@ for iter in range(num_sims):
         # Time lapse
         tick += 1
         if tick == 300:
+            if gen_data:
+                data_bp[:, -1] = game.ball.x
+                data_ap[:, -1] = game.ball.x
+                data_cnt_ap += data_ap.shape[0]
+                data_cnt_bp += data_bp.shape[0]
+                np.save(f'cls_dataset_1tick/after_passing/{iter+existing_num}.npy', data_ap)
+                np.save(f'cls_dataset_1tick/before_passing/{iter+existing_num}.npy', data_bp)
+                print(f'After passing data +{data_ap.shape[0]}, total {data_cnt_ap}')
+                print(f'After passing data +{data_bp.shape[0]}, total {data_cnt_bp}')
             break
-        time.sleep(0.5)
+        # time.sleep(0.5)
 
     # Make video
-    game.vw.release()
+    if video:
+        game.vw.release()
     
     # Clean the previous game
     del game
 
 # Store the statistics for simulation result
-recorder.summary()
+if logging:
+    recorder.summary()

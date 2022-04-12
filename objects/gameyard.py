@@ -12,7 +12,7 @@ class Gameyard:
     defensive_line_x = 400      # The x coordinate of the touchdown line
     start_line_x = 200          # The x coordinate of the scrimmage
 
-    def __init__(self, game_id, prefix, players=1):
+    def __init__(self, game_id, prefix, video=False, players=1):
         '''
             game_id: int, game ID
             prefix: str, output file name prefix
@@ -75,12 +75,13 @@ class Gameyard:
         self.prefix = prefix
         
         # Set up video writer
-        os.makedirs(f"results/{self.prefix}/{self.id}/frames", exist_ok=True)
-        self.vw = cv2.VideoWriter(f"results/{self.prefix}/{self.id}/demo.mp4",
-                                  cv2.VideoWriter_fourcc("m", "p", "4", "v"),
-                                  10,
-                                  (int(1.2 * Gameyard.w), int(1.3 * Gameyard.h)),
-                                  True)
+        if video:
+            os.makedirs(f"results/{self.prefix}/{self.id}/frames", exist_ok=True)
+            self.vw = cv2.VideoWriter(f"results/{self.prefix}/{self.id}/demo.mp4",
+                                    cv2.VideoWriter_fourcc("m", "p", "4", "v"),
+                                    10,
+                                    (int(1.2 * Gameyard.w), int(1.3 * Gameyard.h)),
+                                    True)
 
     def display(self, t):
         '''
