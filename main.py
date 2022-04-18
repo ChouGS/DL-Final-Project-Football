@@ -39,20 +39,20 @@ logging = args.log
 video = args.video
 gen_data = args.gen_data
 
-# Data collector
-os.makedirs('cls_dataset_1tick/after_passing', exist_ok=True)
-os.makedirs('cls_dataset_1tick/before_passing', exist_ok=True)
-data_cnt_ap = 0
-data_cnt_bp = 0
-existing_num = 0
-for fname in os.listdir('cls_dataset_1tick/after_passing'):
-    existing_num = max(existing_num, int(fname.split('.')[0]) + 1)
-
-
 # Initialize result recorder
 display_prefix = f"o{offender_pattern}p{passing_pattern}c{control_pattern}"
 if logging:
     recorder = Result(f"results/{display_prefix}/results.txt")
+
+# Data collector
+data_root = f'raw_data/{num_players}{display_prefix}/cls_dataset_1tick'
+os.makedirs(os.path.join(data_root, 'after_passing'), exist_ok=True)
+os.makedirs(os.path.join(data_root, 'before_passing'), exist_ok=True)
+data_cnt_ap = 0
+data_cnt_bp = 0
+existing_num = 0
+for fname in os.listdir(os.path.join(data_root, 'after_passing')):
+    existing_num = max(existing_num, int(fname.split('.')[0]) + 1)
 
 # Simulation starts...
 for iter in range(num_sims):
@@ -140,7 +140,7 @@ for iter in range(num_sims):
                 pxy_perm = list(itertools.permutations(players_xy, 2))
 
                 for i in range(2 * num_players):
-                    pxy_perm.insert(23 * i, ([0, 0], [0, 0]))
+                    pxy_perm.insert((2 * num_players + 1) * i, ([0, 0], [0, 0]))
 
                 players_xy = np.array(players_xy)
                 pxy_perm_1 = np.array([pxy_perm[i][0] for i in range(len(pxy_perm))])   # (N * N) * 2
@@ -150,17 +150,17 @@ for iter in range(num_sims):
                 dist_matrix[:num_players, :num_players] *= -1
                 dist_matrix[num_players:2*num_players, num_players:2*num_players] *= -1
 
-                new_data_item = np.zeros((22, 72))
-                for i in range(2*num_players):
+                new_data_item = np.zeros((2 * num_players, 3 * (2 * num_players - 1) + 9))
+                for i in range(2 * num_players):
                     others_idx = list(range(2 * num_players))
                     others_idx.remove(i)
-                    new_data_item[i, 0:63:3] = players_xy[others_idx, 0]
-                    new_data_item[i, 1:63:3] = players_xy[others_idx, 1]
-                    new_data_item[i, 2:63:3] = dist_matrix[i, others_idx]
-                    new_data_item[i, 63] = game.ball.x
-                    new_data_item[i, 64] = game.ball.y
-                    new_data_item[i, 65:67] = players_xy[i]
-                    new_data_item[i, 67:71] = game.players[i].trajectory[:, 0]            
+                    new_data_item[i, 0:3*(2*num_players-1):3] = players_xy[others_idx, 0]
+                    new_data_item[i, 1:3*(2*num_players-1):3] = players_xy[others_idx, 1]
+                    new_data_item[i, 2:3*(2*num_players-1):3] = dist_matrix[i, others_idx]
+                    new_data_item[i, 3*(2*num_players-1)] = game.ball.x
+                    new_data_item[i, 3*(2*num_players-1) + 1] = game.ball.y
+                    new_data_item[i, 3*(2*num_players-1) + 2:3*(2*num_players-1) + 4] = players_xy[i]
+                    new_data_item[i, 3*(2*num_players-1) + 4:3*(2*num_players-1) + 8] = game.players[i].trajectory[:, 0]            
 
                 if can_pass:
                     if data_bp is None:
@@ -221,8 +221,8 @@ for iter in range(num_sims):
                 data_ap[:, -1] = game.ball.x
                 data_cnt_ap += data_ap.shape[0]
                 data_cnt_bp += data_bp.shape[0]
-                np.save(f'cls_dataset_1tick/after_passing/{iter+existing_num}.npy', data_ap)
-                np.save(f'cls_dataset_1tick/before_passing/{iter+existing_num}.npy', data_bp)
+                np.save(os.path.join(data_root, 'after_passing', f'{iter+existing_num}.npy'), data_ap)
+                np.save(os.path.join(data_root, 'before_passing', f'{iter+existing_num}.npy'), data_bp)
                 print(f'Simulation {iter+1}/{num_sims} done.')
                 print(f'After passing data +{data_ap.shape[0]}, total {data_cnt_ap}')
                 print(f'Before passing data +{data_bp.shape[0]}, total {data_cnt_bp}')
@@ -243,10 +243,10 @@ for iter in range(num_sims):
                 data_ap[:, -1] = game.ball.x
                 data_cnt_ap += data_ap.shape[0]
                 data_cnt_bp += data_bp.shape[0]
-                np.save(f'cls_dataset_1tick/after_passing/{iter+existing_num}.npy', data_ap)
-                np.save(f'cls_dataset_1tick/before_passing/{iter+existing_num}.npy', data_bp)
+                np.save(os.path.join(data_root, 'after_passing', f'{iter+existing_num}.npy'), data_ap)
+                np.save(os.path.join(data_root, 'before_passing', f'{iter+existing_num}.npy'), data_bp)
                 print(f'After passing data +{data_ap.shape[0]}, total {data_cnt_ap}')
-                print(f'After passing data +{data_bp.shape[0]}, total {data_cnt_bp}')
+                print(f'Before passing data +{data_bp.shape[0]}, total {data_cnt_bp}')
             break
         # time.sleep(0.5)
 
@@ -260,3 +260,10 @@ for iter in range(num_sims):
 # Store the statistics for simulation result
 if logging:
     recorder.summary()
+
+# Combine data and visualize distribution
+if gen_data:
+    import make_data
+    make_data.make_data(f'{num_players}{display_prefix}')
+    import vis_data_distribution
+    vis_data_distribution.vis_distribution()

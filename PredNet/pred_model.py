@@ -8,7 +8,7 @@ class PredNet(nn.Module):
         latent_dims = [feature_dim] + latent_dims
         self.net = []
         for i in range(1, len(latent_dims)):
-            self.net.append((f'bn{i+1}', nn.BatchNorm1d(latent_dims[i-1])))
+            # self.net.append((f'bn{i+1}', nn.BatchNorm1d(latent_dims[i-1])))
             self.net.append((f'fc{i+1}', nn.Linear(latent_dims[i-1], latent_dims[i])))
             self.net.append((f'relu{i+1}', nn.LeakyReLU(0.2)))
         self.net.append(('fc_outp', nn.Linear(latent_dims[-1], 1)))
