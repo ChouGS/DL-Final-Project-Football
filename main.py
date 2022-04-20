@@ -45,7 +45,7 @@ if logging:
     recorder = Result(f"results/{display_prefix}/results.txt")
 
 # Data collector
-data_root = f'raw_data/{num_players}{display_prefix}/cls_dataset_1tick'
+data_root = f'raw_data/{num_players}{display_prefix}'
 os.makedirs(os.path.join(data_root, 'after_passing'), exist_ok=True)
 os.makedirs(os.path.join(data_root, 'before_passing'), exist_ok=True)
 data_cnt_ap = 0
