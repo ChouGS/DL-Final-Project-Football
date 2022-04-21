@@ -213,7 +213,11 @@ if __name__ == '__main__':
     niters = len(ap_tr_notd) // cfg.DATA.TRAINBS + 1
     for e in range(cfg.MODEL.X.EPOCH):
         for i, (data, _, x_label, _) in enumerate(ap_tr_notd_loader):
-            data_encoded, _ = ap_ae(data)
+            if cfg.USE_AE:
+                data_encoded, _ = ap_ae(data)
+            else:
+                data_encoded = data
+
             logits = ap_pred(data_encoded)
             
             loss_val = pred_loss(logits, x_label)
