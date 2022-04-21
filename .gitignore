@@ -9,3 +9,5 @@
 *.npy
 *.zip
 *raw_data*
+*.yaml
+!attention.yaml

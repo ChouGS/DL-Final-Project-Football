@@ -1,0 +1,33 @@
+NAME: 'ae_multitask'
+DATA_DIR: 'raw_data/11oLpHcL/synthesized'
+USE_AE: False
+MTASK: False
+PRED: 'ATT'
+
+MODEL:
+  AE:
+    LR: 0.001
+    EPOCH: 35
+    USE_BN: False
+    IN_DIM: 0
+    LAT_D: 16
+    STRUCTURE: [128, 256, 256, 64]
+  TD:
+    LR: 0.001
+    EPOCH: 35
+    IN_DIM: 0
+    USE_BN: False
+    STRUCTURE: [128, 256, 256, 64]
+  X:
+    LR: 0.001
+    EPOCH: 35
+    IN_DIM: 0
+    USE_BN: False
+    STRUCTURE: [64, 256, 256, 64, 16]
+  ATT:
+    LR: 0.0001
+    EPOCH: 50
+    NHEAD: 4
+    USE_BN: False
+    QKV_STRUCTURE: [16, 64, 256, 64, 16]
+    OUTP_CHN: [8, 1]

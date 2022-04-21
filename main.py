@@ -129,13 +129,14 @@ for iter in range(num_sims):
 
             # Generate data
             if gen_data:
-                # IMPORTANT: Data structure
-                # 0-2: (x, y, dist) of teammate 1, ... till 27-29
-                # 30-32: (x, y, dist) of rival 1, ..., till 60-62
-                # 63-64: (x, y) of ball
-                # 65-66: (x, y) of self
-                # 67-70: self next decision (dx, dy, vx, vy)
-                # 71: label
+                # IMPORTANT: Data structure (11 player game as example)
+                # 0-2: (x, y, dist) of teammate 1, ... till 30-32
+                # 33-35: (x, y, dist) of rival 1, ..., till 63-65
+                # 66-68: (x, y, dist) of ball
+                # 69-70: (x, y) of self
+                # 71-74: self next decision (dx, dy, vx, vy)
+                # 75: final x label
+                # 76: touchdown or not
                 players_xy = [[game.players[i].x, game.players[i].y] for i in range(2 * num_players)]
                 pxy_perm = list(itertools.permutations(players_xy, 2))
 
@@ -150,17 +151,17 @@ for iter in range(num_sims):
                 dist_matrix[:num_players, :num_players] *= -1
                 dist_matrix[num_players:2*num_players, num_players:2*num_players] *= -1
 
-                new_data_item = np.zeros((2 * num_players, 3 * (2 * num_players - 1) + 9))
+                new_data_item = np.zeros((2 * num_players, 3 * (2 * num_players) + 11))
                 for i in range(2 * num_players):
-                    others_idx = list(range(2 * num_players))
-                    others_idx.remove(i)
-                    new_data_item[i, 0:3*(2*num_players-1):3] = players_xy[others_idx, 0]
-                    new_data_item[i, 1:3*(2*num_players-1):3] = players_xy[others_idx, 1]
-                    new_data_item[i, 2:3*(2*num_players-1):3] = dist_matrix[i, others_idx]
-                    new_data_item[i, 3*(2*num_players-1)] = game.ball.x
-                    new_data_item[i, 3*(2*num_players-1) + 1] = game.ball.y
-                    new_data_item[i, 3*(2*num_players-1) + 2:3*(2*num_players-1) + 4] = players_xy[i]
-                    new_data_item[i, 3*(2*num_players-1) + 4:3*(2*num_players-1) + 8] = game.players[i].trajectory[:, 0]            
+                    players_idx = list(range(2 * num_players))
+                    new_data_item[i, 0:3*(2*num_players):3] = players_xy[players_idx, 0]
+                    new_data_item[i, 1:3*(2*num_players):3] = players_xy[players_idx, 1]
+                    new_data_item[i, 2:3*(2*num_players):3] = dist_matrix[i, players_idx]
+                    new_data_item[i, 3*(2*num_players)] = game.ball.x
+                    new_data_item[i, 3*(2*num_players) + 1] = game.ball.y
+                    new_data_item[i, 3*(2*num_players) + 2] = np.sqrt((game.ball.y - game.players[i].y)**2 + (game.ball.x - game.players[i].x)**2)
+                    new_data_item[i, 3*(2*num_players) + 3:3*(2*num_players) + 5] = players_xy[i]
+                    new_data_item[i, 3*(2*num_players) + 5:3*(2*num_players) + 9] = game.players[i].trajectory[:, 0]            
 
                 if can_pass:
                     if data_bp is None:
