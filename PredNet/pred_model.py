@@ -13,6 +13,7 @@ class PredTD(nn.Module):
             self.net.append((f'fc{i+1}', nn.Linear(latent_dims[i-1], latent_dims[i])))
             self.net.append((f'relu{i+1}', nn.LeakyReLU(0.2)))
         self.net.append(('fc_outp', nn.Linear(latent_dims[-1], 2)))
+        self.net.append(('softmax', nn.Softmax(1)))
         self.net = nn.Sequential(OrderedDict(self.net))
 
     def forward(self, x):
@@ -34,7 +35,7 @@ class PredX(nn.Module):
         return self.net(x)
 
 class PredAE(nn.Module):
-    def __init__(self, encoder_structure, latent_dim=16, feature_dim=67):
+    def __init__(self, encoder_structure, latent_dim=32, feature_dim=67):
         super(PredAE, self).__init__()
         encoder_structure = [feature_dim] + encoder_structure + [latent_dim]
         decoder_structure = list(reversed(encoder_structure))

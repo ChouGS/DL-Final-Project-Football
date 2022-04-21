@@ -1,0 +1,45 @@
+from yacs.config import CfgNode as CN
+
+_C = CN()
+
+_C.NAME = ''
+_C.DATA_DIR = ''
+
+_C.DATA = CN()
+
+_C.DATA.TESTRATIO = 0.2
+_C.DATA.TRAINBS = 256
+_C.DATA.TESTBS = 256
+
+_C.COMPONENTS = ['AE', 'TD', 'X']
+
+_C.MODEL = CN()
+
+_C.MODEL.TD = CN()
+_C.MODEL.TD.LR = 0.001
+_C.MODEL.TD.EPOCH = 35
+_C.MODEL.TD.USE_BN = False
+_C.MODEL.TD.STRUCTURE = [128, 256, 256, 64]
+
+_C.MODEL.X = CN()
+_C.MODEL.X.LR = 0.001
+_C.MODEL.X.EPOCH = 35
+_C.MODEL.X.USE_BN = False
+_C.MODEL.X.STRUCTURE = [128, 256, 256, 64]
+
+_C.MODEL.AE = CN()
+_C.MODEL.AE.LR = 0.001
+_C.MODEL.AE.EPOCH = 35
+_C.MODEL.AE.USE_BN = False
+_C.MODEL.AE.LAT_D = 16
+_C.MODEL.AE.STRUCTURE = [128, 256, 256, 64]
+
+_C.MODEL.ATT = CN()
+_C.MODEL.ATT.LR = 0.001
+_C.MODEL.ATT.EPOCH = 35
+_C.MODEL.ATT.USE_BN = False
+_C.MODEL.ATT.QKV_D = 16
+_C.MODEL.ATT.NHEAD = 4
+
+def get_default_cfg():
+    return _C.clone()
