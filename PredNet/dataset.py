@@ -20,8 +20,9 @@ class AttentionDataset(Dataset):
     
     def __getitem__(self, index):
         att_feature = self.data[index, :69].reshape(23, 3)
-        att_feature = torch.cat([att_feature, torch.zeros(23, 1)], 1)
-        att_feature[:, 2:] = self.data[index, 69:71]
+        att_feature = torch.cat([att_feature, torch.zeros(23, 3)], 1)
+        att_feature[:, 2:4] = self.data[index, 69:71]
+        att_feature[:, 4:] = self.data[index, 73:75]
         return att_feature, self.data[index, 71:75], self.data[index, 76:77], self.data[index, 77:].long()
 
     def __len__(self):

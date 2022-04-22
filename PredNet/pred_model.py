@@ -73,7 +73,7 @@ class PredATT(nn.Module):
         super(PredATT, self).__init__()
         latent_dim = cfg.QKV_STRUCTURE
         self.attention = nn.MultiheadAttention(latent_dim[-1], num_heads=cfg.NHEAD)
-        latent_dim = [4] + latent_dim
+        latent_dim = [6] + latent_dim
         outp_dim = [latent_dim[-1] * 2] + cfg.OUTP_CHN
         if cfg.USE_BN:
             q_structure = []
@@ -81,18 +81,31 @@ class PredATT(nn.Module):
             v_structure = []
             for i in range(1, len(latent_dim)):
                 q_structure += [(f'q_bn{i}', nn.BatchNorm1d(23)),
-                                (f'q_{i}', nn.Linear(latent_dim[i-1], latent_dim[i]))]
+                                (f'q_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
+                                (f'q_relu_{i}', nn.LeakyReLU(0.2))]
                 k_structure += [(f'k_bn{i}', nn.BatchNorm1d(23)),
-                                (f'k_{i}', nn.Linear(latent_dim[i-1], latent_dim[i]))]
+                                (f'k_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
+                                (f'k_relu_{i}', nn.LeakyReLU(0.2))]
                 v_structure += [(f'v_bn{i}', nn.BatchNorm1d(23)),
-                                (f'v_{i}', nn.Linear(latent_dim[i-1], latent_dim[i]))]
+                                (f'v_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
+                                (f'v_relu_{i}', nn.LeakyReLU(0.2))]
             self.q = nn.Sequential(OrderedDict(q_structure))
             self.k = nn.Sequential(OrderedDict(k_structure))
             self.v = nn.Sequential(OrderedDict(v_structure))
         else:
-            self.q = nn.Sequential(OrderedDict([(f'q_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
-            self.k = nn.Sequential(OrderedDict([(f'k_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
-            self.v = nn.Sequential(OrderedDict([(f'v_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
+            q_structure = []
+            k_structure = []
+            v_structure = []
+            for i in range(1, len(latent_dim)):
+                q_structure += [(f'q_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
+                                (f'q_relu_{i}', nn.LeakyReLU(0.2))]
+                k_structure += [(f'k_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
+                                (f'k_relu_{i}', nn.LeakyReLU(0.2))]
+                v_structure += [(f'v_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
+                                (f'v_relu_{i}', nn.LeakyReLU(0.2))]
+            self.q = nn.Sequential(OrderedDict(q_structure))
+            self.k = nn.Sequential(OrderedDict(k_structure))
+            self.v = nn.Sequential(OrderedDict(v_structure))
         outp_structure = [(f'outp{i}', nn.Conv1d(outp_dim[i-1], outp_dim[i], 1)) for i in range(1, len(outp_dim))]
         outp_structure.append(('flatten', nn.Flatten(1, -1)))
         outp_structure.append(('fc_final', nn.Linear(23, 1)))
