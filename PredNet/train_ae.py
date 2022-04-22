@@ -249,6 +249,16 @@ if __name__ == '__main__':
     # Plot loss curves
     vis_loss_curve(cfg, loss_dict)
 
+    os.makedirs(f'PredNet/results/{cfg.NAME}/models', exist_ok=True)
+    if cfg.MTASK:
+        torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_td.th')
+        torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_td.th')
+    if cfg.USE_AE:
+        torch.save(ap_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_ae.th')
+        torch.save(bp_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_ae.th')
+    torch.save(ap_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_pred.th')
+    torch.save(bp_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_pred.th')
+
     # Testing predictor
     nums_seen = 0
     nums_x = 0
@@ -321,14 +331,4 @@ if __name__ == '__main__':
     print(f'AP testing results: x_pred_MSE={acc_loss / nums_x}\n')
     if cfg.MTASK:
         print(f'                    touchdown_precision={td_correct / nums_seen}')
-
-    os.makedirs(f'PredNet/results/{cfg.NAME}/models', exist_ok=True)
-    if cfg.MTASK:
-        torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_td.th')
-        torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_td.th')
-    if cfg.USE_AE:
-        torch.save(ap_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_ae.th')
-        torch.save(bp_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_ae.th')
-    torch.save(ap_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_pred.th')
-    torch.save(bp_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_pred.th')
     

@@ -121,9 +121,9 @@ class PredATT(nn.Module):
         att, _ = self.attention(q, k, v)
 
         # Average and concatenation
-        att_mean, _ = torch.max(att, 1, keepdim=True)
-        att_mean = torch.Tensor.repeat(att_mean, (1, att.shape[1], 1))
-        att = torch.cat([att, att_mean], -1).transpose(1, 2)
+        aggr_att, _ = torch.max(att, 1, keepdim=True)
+        aggr_att = torch.Tensor.repeat(aggr_att, (1, att.shape[1], 1))
+        att = torch.cat([att, aggr_att], -1).transpose(1, 2)
 
         # 1x1 conv and average again
         outp = self.outp(att)

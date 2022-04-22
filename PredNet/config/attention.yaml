@@ -6,7 +6,7 @@ PRED: 'ATT'
 
 DATA:
   TRAINBS: 128
-  TESTBS: 256
+  TESTBS: 128
 
 MODEL:
   AE:
@@ -30,7 +30,7 @@ MODEL:
     STRUCTURE: [64, 256, 256, 64, 16]
   ATT:
     LR: 0.0002
-    EPOCH: 20
+    EPOCH: 1
     NHEAD: 4
     USE_BN: True
     QKV_STRUCTURE: [16, 64, 128, 64, 16]
