@@ -215,7 +215,7 @@ if __name__ == '__main__':
 
     print('\nTraining after_passing predictor...')
     niters = len(ap_tr_notd) // cfg.DATA.TRAINBS + 1
-    for e in range(cfg.MODEL.X.EPOCH):
+    for e in range(epoch):
         for i, (data, _, x_label, _) in enumerate(ap_tr_notd_loader):
             if cfg.USE_AE:
                 data_encoded, _ = ap_ae(data)
@@ -232,7 +232,7 @@ if __name__ == '__main__':
             ap_pred_opt.step()
 
             if i % cfg.PRINT_FREQ == 0:
-                print(f'Pred epoch {e}/{cfg.MODEL.X.EPOCH}, iter {i + 1}/{niters}: ap_pred_loss={loss_val}')
+                print(f'Pred epoch {e}/{epoch}, iter {i + 1}/{niters}: ap_pred_loss={loss_val}')
     
     loss_dict = {
         'ap_x_loss': ap_pred_loss,
