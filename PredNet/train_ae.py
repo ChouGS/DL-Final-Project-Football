@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 from torch.utils.data import DataLoader
 import os
+import re
 import shutil
 import argparse
 
@@ -18,6 +19,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-cfg", "--config", help="[Required] the path to a .yaml file to use as the config.", \
                     type=str, required=True)
 args = parser.parse_args()
+args.config = re.sub('\\\\', '/', args.config)
 
 cfg = get_default_cfg()
 cfg.merge_from_file(args.config)
@@ -180,17 +182,19 @@ if __name__ == '__main__':
         ap_pred = PredX(cfg.MODEL.X)
         ap_pred_opt = optim.Adam(ap_pred.parameters(), lr=cfg.MODEL.X.LR)
         bp_pred_opt = optim.Adam(bp_pred.parameters(), lr=cfg.MODEL.X.LR)
+        epoch = cfg.MODEL.X.EPOCH
     elif cfg.PRED == 'ATT':
         bp_pred = PredATT(cfg.MODEL.ATT)
         ap_pred = PredATT(cfg.MODEL.ATT)
-        ap_pred_opt = optim.Adam(ap_pred.parameters(), lr=cfg.MODEL.X.LR)
-        bp_pred_opt = optim.Adam(bp_pred.parameters(), lr=cfg.MODEL.X.LR)
+        ap_pred_opt = optim.Adam(ap_pred.parameters(), lr=cfg.MODEL.ATT.LR)
+        bp_pred_opt = optim.Adam(bp_pred.parameters(), lr=cfg.MODEL.ATT.LR)
+        epoch = cfg.MODEL.ATT.EPOCH
     
     ap_pred_loss = []
     bp_pred_loss = []
     print('\nTraining before_passing predictor...')
     niters = len(bp_tr_notd) // cfg.DATA.TRAINBS + 1
-    for e in range(cfg.MODEL.X.EPOCH):
+    for e in range(0):
         for i, (data, _, x_label, _) in enumerate(bp_tr_notd_loader):
             if cfg.USE_AE:
                 data_encoded, _ = bp_ae(data)
@@ -207,7 +211,7 @@ if __name__ == '__main__':
             bp_pred_opt.step()
 
             if i % cfg.PRINT_FREQ == 0:
-                print(f'Pred epoch {e}/{cfg.MODEL.X.EPOCH}, iter {i + 1}/{niters}: bp_pred_loss={loss_val}')
+                print(f'Pred epoch {e}/{epoch}, iter {i + 1}/{niters}: bp_pred_loss={loss_val}')
 
     print('\nTraining after_passing predictor...')
     niters = len(ap_tr_notd) // cfg.DATA.TRAINBS + 1

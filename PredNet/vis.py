@@ -10,4 +10,4 @@ def vis_loss_curve(cfg, loss_dict):
         plot.xlabel('iters')
         plot.ylabel('loss')
         plot.title(f'{key}')
-        plot.savefig(f'PredNet/results/loss/{cfg.NAME}/{key}.jpg')
+        plot.savefig(f'PredNet/results/{cfg.NAME}/loss/{key}.jpg')

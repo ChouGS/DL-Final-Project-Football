@@ -25,7 +25,7 @@ MODEL:
     USE_BN: False
     STRUCTURE: [64, 256, 256, 64, 16]
   ATT:
-    LR: 0.0001
+    LR: 0.001
     EPOCH: 50
     NHEAD: 4
     USE_BN: False
