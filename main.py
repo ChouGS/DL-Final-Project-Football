@@ -136,7 +136,8 @@ for iter in range(num_sims):
                 # 69-70: (x, y) of self
                 # 71-74: self next decision (dx, dy, vx, vy)
                 # 75: final x label
-                # 76: touchdown or not
+                # 76: score label
+                # 77: touchdown or not
                 players_xy = [[game.players[i].x, game.players[i].y] for i in range(2 * num_players)]
                 pxy_perm = list(itertools.permutations(players_xy, 2))
 

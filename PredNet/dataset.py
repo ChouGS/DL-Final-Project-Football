@@ -7,7 +7,7 @@ class PredictorDataset(Dataset):
         self.data = torch.Tensor(data)
     
     def __getitem__(self, index):
-        return self.data[index, :71], self.data[index, 71:75], self.data[index, 75:76], self.data[index, 76:].long()
+        return self.data[index, :71], self.data[index, 71:75], self.data[index, 75:76], self.data[index, 77:].long()
 
     def __len__(self):
         return self.data.shape[0]
@@ -18,7 +18,7 @@ class AttentionDataset(Dataset):
         self.data = torch.Tensor(data)
     
     def __getitem__(self, index):
-        return self.data[index, :69].reshape(23, 3), self.data[index, 71:75], self.data[index, 75:76], self.data[index, 76:].long()
+        return self.data[index, :69].reshape(23, 3), self.data[index, 71:75], self.data[index, 76:77], self.data[index, 77:].long()
 
     def __len__(self):
         return self.data.shape[0]

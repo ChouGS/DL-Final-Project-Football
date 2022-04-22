@@ -33,6 +33,7 @@ def make_scored_data(root_list, step=10, nplayer=11, beta=0.8):
         d = os.path.join('raw_data', root, 'after_passing')
         for fname in os.listdir(d):
             data = np.load(os.path.join(d, fname))
+            data = np.concatenate([data, np.zeros((data.shape[0], 1))], 1)
             beta_series = np.array([beta ** i for i in range(step)])
             ball_x = data[list(range(0, data.shape[0], 2 * nplayer)), ball_x_index] 
             n_valid_ticks = ball_x.shape[0]
@@ -55,10 +56,14 @@ def make_scored_data(root_list, step=10, nplayer=11, beta=0.8):
         d = os.path.join('raw_data', root, 'before_passing')
         for fname in os.listdir(d):
             data = np.load(os.path.join(d, fname))
+            data = np.concatenate([data, np.zeros((data.shape[0], 1))], 1)
             beta_series = np.array([beta ** i for i in range(step)])
             ball_x = data[list(range(0, data.shape[0], 2 * nplayer)), ball_x_index] 
             n_valid_ticks = ball_x.shape[0]
-            ball_x = np.concatenate([ball_x, [data[0, -1] for _ in range(step)]], 0)
+            if np.abs(data[0, -1] - 400) < 1:
+                ball_x = np.concatenate([ball_x, [410 + 10 * i for i in range(step)]], 0)
+            else:
+                ball_x = np.concatenate([ball_x, [data[0, -1] for _ in range(step)]], 0)
             for i in range(n_valid_ticks):
                 ball_x_diff = ball_x[i + 1:i + step + 1] - ball_x[i:i + step]
                 tick_scores = np.dot(beta_series, ball_x_diff)
@@ -75,20 +80,18 @@ def make_scored_data(root_list, step=10, nplayer=11, beta=0.8):
 
 def append_touchdown_label(data_root):
     data = np.load(os.path.join(data_root, 'data_after_passing.npy'))
-    touchdown = (np.abs(data[:, -1] - 400) < 1).astype(data.dtype)[:, np.newaxis]
+    touchdown = (np.abs(data[:, -2] - 400) < 1).astype(data.dtype)[:, np.newaxis]
     data = np.concatenate([data, touchdown], 1)
     np.save(os.path.join(data_root, 'data_after_passing.npy'), data)
 
     data = np.load(os.path.join(data_root, 'data_before_passing.npy'))
-    touchdown = (np.abs(data[:, -1] - 400) < 1).astype(data.dtype)[:, np.newaxis]
+    touchdown = (np.abs(data[:, -2] - 400) < 1).astype(data.dtype)[:, np.newaxis]
     data = np.concatenate([data, touchdown], 1)
     np.save(os.path.join(data_root, 'data_before_passing.npy'), data)
 
 def append_ball_dist(data_root):
 
     data = np.load(os.path.join(data_root, 'data_after_passing.npy'))
-    import pdb
-    pdb.set_trace()
     ball_pos = data[:, 63:65]
     self_pos = data[:, 65:67]
     ball_dist = np.sqrt(np.sum((ball_pos - self_pos) * (ball_pos - self_pos), 1, keepdims=True))
@@ -104,17 +107,17 @@ def append_ball_dist(data_root):
 
 def append_self_pos(data_root, nplayers=11):
     data = np.load(os.path.join(data_root, 'data_after_passing.npy'))
-    assert data.shape[1] == (2 * nplayers - 1) * 3 + 10
+    assert data.shape[1] == (2 * nplayers - 1) * 3 + 12
     assert data.shape[0] % (2 * nplayers) == 0
-    new_data = np.zeros((data.shape[0], 3 * (2 * nplayers) + 10))
+    new_data = np.zeros((data.shape[0], 3 * (2 * nplayers) + 12))
     for i in range(data.shape[0]):
         new_data[i] = np.insert(data[i], 3 * (i % (2 * nplayers)), [data[i, 66], data[i, 67], 0])
     np.save(os.path.join(data_root, 'data_after_passing.npy'), new_data)
 
     data = np.load(os.path.join(data_root, 'data_before_passing.npy'))
-    assert data.shape[1] == (2 * nplayers - 1) * 3 + 10
+    assert data.shape[1] == (2 * nplayers - 1) * 3 + 12
     assert data.shape[0] % (2 * nplayers) == 0
-    new_data = np.zeros((data.shape[0], 3 * (2 * nplayers) + 10))
+    new_data = np.zeros((data.shape[0], 3 * (2 * nplayers) + 12))
     for i in range(data.shape[0]):
         new_data[i] = np.insert(data[i], 3 * (i % (2 * nplayers)), [data[i, 66], data[i, 67], 0])
     np.save(os.path.join(data_root, 'data_before_passing.npy'), new_data)
@@ -141,7 +144,7 @@ if __name__ == '__main__':
     data_root = 'raw_data/11oLpHcL/synthesized'
     # make_data(data_root)
     # append_touchdown_label(data_root)
-    append_ball_dist(data_root)
+    # append_ball_dist(data_root)
     # for beta in np.arange(0.2, 1, 0.05):
     append_self_pos(data_root)
     # make_scored_data(['1', '2', '3', '11oLpHcL', 'cls_dataset_1tick'], beta=0.9)
