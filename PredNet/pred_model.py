@@ -75,10 +75,28 @@ class PredATT(nn.Module):
         self.attention = nn.MultiheadAttention(latent_dim[-1], num_heads=cfg.NHEAD)
         latent_dim = [4] + latent_dim
         outp_dim = [latent_dim[-1] * 2] + cfg.OUTP_CHN
-        self.q = nn.Sequential(OrderedDict([(f'q{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
-        self.k = nn.Sequential(OrderedDict([(f'k{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
-        self.v = nn.Sequential(OrderedDict([(f'v{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
-        self.outp = nn.Sequential(OrderedDict([(f'outp{i}', nn.Conv1d(outp_dim[i-1], outp_dim[i], 1)) for i in range(1, len(outp_dim))]))
+        if cfg.USE_BN:
+            q_structure = []
+            k_structure = []
+            v_structure = []
+            for i in range(1, len(latent_dim)):
+                q_structure += [(f'q_bn{i}', nn.BatchNorm1d(23)),
+                                (f'q_{i}', nn.Linear(latent_dim[i-1], latent_dim[i]))]
+                k_structure += [(f'k_bn{i}', nn.BatchNorm1d(23)),
+                                (f'k_{i}', nn.Linear(latent_dim[i-1], latent_dim[i]))]
+                v_structure += [(f'v_bn{i}', nn.BatchNorm1d(23)),
+                                (f'v_{i}', nn.Linear(latent_dim[i-1], latent_dim[i]))]
+            self.q = nn.Sequential(OrderedDict(q_structure))
+            self.k = nn.Sequential(OrderedDict(k_structure))
+            self.v = nn.Sequential(OrderedDict(v_structure))
+        else:
+            self.q = nn.Sequential(OrderedDict([(f'q_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
+            self.k = nn.Sequential(OrderedDict([(f'k_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
+            self.v = nn.Sequential(OrderedDict([(f'v_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
+        outp_structure = [(f'outp{i}', nn.Conv1d(outp_dim[i-1], outp_dim[i], 1)) for i in range(1, len(outp_dim))]
+        outp_structure.append(('flatten', nn.Flatten(1, -1)))
+        outp_structure.append(('fc_final', nn.Linear(23, 1)))
+        self.outp = nn.Sequential(OrderedDict(outp_structure))
 
     def forward(self, x):
         # q, k, v as in the attention layer
@@ -90,10 +108,11 @@ class PredATT(nn.Module):
         att, _ = self.attention(q, k, v)
 
         # Average and concatenation
-        att_mean = torch.mean(att, 1, keepdim=True).repeat(1, att.shape[1], 1)
+        att_mean, _ = torch.max(att, 1, keepdim=True)
+        att_mean = torch.Tensor.repeat(att_mean, (1, att.shape[1], 1))
         att = torch.cat([att, att_mean], -1).transpose(1, 2)
 
         # 1x1 conv and average again
-        outp = torch.mean(self.outp(att), -1)
+        outp = self.outp(att)
 
         return outp
