@@ -73,7 +73,7 @@ class PredATT(nn.Module):
         super(PredATT, self).__init__()
         latent_dim = cfg.QKV_STRUCTURE
         self.attention = nn.MultiheadAttention(latent_dim[-1], num_heads=cfg.NHEAD)
-        latent_dim = [3] + latent_dim
+        latent_dim = [4] + latent_dim
         outp_dim = [latent_dim[-1] * 2] + cfg.OUTP_CHN
         self.q = nn.Sequential(OrderedDict([(f'q{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))
         self.k = nn.Sequential(OrderedDict([(f'k{i}', nn.Linear(latent_dim[i-1], latent_dim[i])) for i in range(1, len(latent_dim))]))

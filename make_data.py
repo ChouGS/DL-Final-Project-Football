@@ -37,15 +37,19 @@ def make_scored_data(root_list, step=10, nplayer=11, beta=0.8):
             beta_series = np.array([beta ** i for i in range(step)])
             ball_x = data[list(range(0, data.shape[0], 2 * nplayer)), ball_x_index] 
             n_valid_ticks = ball_x.shape[0]
-            ball_x = np.concatenate([ball_x, [data[0, -1] for _ in range(step)]], 0)
+            if np.abs(data[0, -2] - 400) < 1:
+                ball_x = np.concatenate([ball_x, [410 + 10 * i for i in range(step)]], 0)
+            else:
+                ball_x = np.concatenate([ball_x, [data[0, -2] for _ in range(step)]], 0)
             for i in range(n_valid_ticks):
                 ball_x_diff = ball_x[i + 1:i + step + 1] - ball_x[i:i + step]
                 tick_scores = np.dot(beta_series, ball_x_diff)
                 data[i * (2 * nplayer):(i + 1) * (2 * nplayer), -1] = tick_scores
                 if i == 1:
                     data[0:22, -1] = tick_scores
-                # import pdb
-                # pdb.set_trace()
+                if tick_scores < 0:
+                    import pdb
+                    pdb.set_trace()
             if data_ap is None:
                 data_ap = data
             else:
@@ -60,10 +64,10 @@ def make_scored_data(root_list, step=10, nplayer=11, beta=0.8):
             beta_series = np.array([beta ** i for i in range(step)])
             ball_x = data[list(range(0, data.shape[0], 2 * nplayer)), ball_x_index] 
             n_valid_ticks = ball_x.shape[0]
-            if np.abs(data[0, -1] - 400) < 1:
+            if np.abs(data[0, -2] - 400) < 1:
                 ball_x = np.concatenate([ball_x, [410 + 10 * i for i in range(step)]], 0)
             else:
-                ball_x = np.concatenate([ball_x, [data[0, -1] for _ in range(step)]], 0)
+                ball_x = np.concatenate([ball_x, [data[0, -2] for _ in range(step)]], 0)
             for i in range(n_valid_ticks):
                 ball_x_diff = ball_x[i + 1:i + step + 1] - ball_x[i:i + step]
                 tick_scores = np.dot(beta_series, ball_x_diff)
@@ -146,5 +150,5 @@ if __name__ == '__main__':
     # append_touchdown_label(data_root)
     # append_ball_dist(data_root)
     # for beta in np.arange(0.2, 1, 0.05):
-    append_self_pos(data_root)
+    # append_self_pos(data_root)
     # make_scored_data(['1', '2', '3', '11oLpHcL', 'cls_dataset_1tick'], beta=0.9)

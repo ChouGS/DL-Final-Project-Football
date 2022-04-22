@@ -24,6 +24,7 @@ args.config = re.sub('\\\\', '/', args.config)
 cfg = get_default_cfg()
 cfg.merge_from_file(args.config)
 os.makedirs(f'PredNet/results/{cfg.NAME}/config', exist_ok=True)
+os.makedirs(f'PredNet/results/{cfg.NAME}/models', exist_ok=True)
 shutil.copy(args.config, f'PredNet/results/{cfg.NAME}/config/{args.config.split("/")[-1]}')
 
 if __name__ == '__main__':
@@ -44,17 +45,17 @@ if __name__ == '__main__':
     else:
         raise NotImplementedError(f'Not supported predictor type {cfg.PRED}')
 
-    ap_trloader = DataLoader(ap_train, batch_size=cfg.DATA.TRAINBS)
-    bp_trloader = DataLoader(bp_train, batch_size=cfg.DATA.TRAINBS)
-    ap_teloader = DataLoader(ap_test, batch_size=cfg.DATA.TESTBS)
-    bp_teloader = DataLoader(bp_test, batch_size=cfg.DATA.TESTBS)
+    ap_trloader = DataLoader(ap_train, batch_size=cfg.DATA.TRAINBS, shuffle=True)
+    bp_trloader = DataLoader(bp_train, batch_size=cfg.DATA.TRAINBS, shuffle=True)
+    ap_teloader = DataLoader(ap_test, batch_size=cfg.DATA.TESTBS, shuffle=True)
+    bp_teloader = DataLoader(bp_test, batch_size=cfg.DATA.TESTBS, shuffle=True)
 
     # Load data for multitasking
     if cfg.MTASK:
         ap_tr_notd = PredictorDataset(ap_data[ap_data[:, -1] == 0])
         bp_tr_notd = PredictorDataset(bp_data[bp_data[:, -1] == 0])
-        ap_tr_notd_loader = DataLoader(ap_tr_notd, batch_size=cfg.DATA.TRAINBS)    # No-touchdown data
-        bp_tr_notd_loader = DataLoader(bp_tr_notd, batch_size=cfg.DATA.TRAINBS)    # No-touchdown data
+        ap_tr_notd_loader = DataLoader(ap_tr_notd, batch_size=cfg.DATA.TRAINBS, shuffle=True)    # No-touchdown data
+        bp_tr_notd_loader = DataLoader(bp_tr_notd, batch_size=cfg.DATA.TRAINBS, shuffle=True)    # No-touchdown data
         cfg.MODEL.TD.IN_DIM = cfg.DATA.FDIM
     else:
         ap_tr_notd = ap_train
@@ -320,3 +321,14 @@ if __name__ == '__main__':
     print(f'AP testing results: x_pred_MSE={acc_loss / nums_x}\n')
     if cfg.MTASK:
         print(f'                    touchdown_precision={td_correct / nums_seen}')
+
+    os.makedirs(f'PredNet/results/{cfg.NAME}/models', exist_ok=True)
+    if cfg.MTASK:
+        torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_td.th')
+        torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_td.th')
+    if cfg.USE_AE:
+        torch.save(ap_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_ae.th')
+        torch.save(bp_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_ae.th')
+    torch.save(ap_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_pred.th')
+    torch.save(bp_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_pred.th')
+    
