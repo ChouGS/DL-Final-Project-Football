@@ -90,10 +90,14 @@ if __name__ == '__main__':
         start_epoch = 0
         if args.continue_training:
             start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/ae')
-            if os.path.exists(f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_{start_epoch}.th'):
-                ap_ae.load_state_dict(f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_{start_epoch}.th')
-            if os.path.exists(f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_{start_epoch}.th'):
-                bp_ae.load_state_dict(f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_{start_epoch}.th')
+            sd_path = f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_{start_epoch}.th'
+            if os.path.exists(sd_path):
+                state_dict = torch.load(sd_path)
+                ap_ae.load_state_dict(state_dict)    
+            sd_path = f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_{start_epoch}.th'
+            if os.path.exists(sd_path):
+                state_dict = torch.load(sd_path)
+                bp_ae.load_state_dict(state_dict)    
 
         # Training
         ap_ae_loss = []
@@ -154,10 +158,14 @@ if __name__ == '__main__':
         start_epoch = 0
         if args.continue_training:
             start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/td')
-            if os.path.exists(f'PredNet/results/{cfg.NAME}/models/td/ap_td_{start_epoch}.th'):
-                ap_td.load_state_dict(f'PredNet/results/{cfg.NAME}/models/td/ap_td_{start_epoch}.th')
-            if os.path.exists(f'PredNet/results/{cfg.NAME}/models/td/bp_td_{start_epoch}.th'):
-                bp_td.load_state_dict(f'PredNet/results/{cfg.NAME}/models/td/bp_td_{start_epoch}.th')
+            sd_path = f'PredNet/results/{cfg.NAME}/models/td/ap_td_{start_epoch}.th'
+            if os.path.exists(sd_path):
+                state_dict = torch.load(sd_path)
+                ap_td.load_state_dict(state_dict)    
+            sd_path = f'PredNet/results/{cfg.NAME}/models/td/bp_td_{start_epoch}.th'
+            if os.path.exists(sd_path):
+                state_dict = torch.load(sd_path)
+                bp_td.load_state_dict(state_dict)    
 
         # Training
         ap_td_loss = []
@@ -233,10 +241,14 @@ if __name__ == '__main__':
     start_epoch = 0
     if args.continue_training:
         start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/pred')
-        if os.path.exists(f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{start_epoch}.th'):
-            ap_pred.load_state_dict(f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{start_epoch}.th')
-        if os.path.exists(f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_{start_epoch}.th'):
-            bp_pred.load_state_dict(f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_{start_epoch}.th')
+        sd_path = f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{start_epoch}.th'
+        if os.path.exists(sd_path):
+            state_dict = torch.load(sd_path)
+            ap_pred.load_state_dict(state_dict)    
+        sd_path = f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_{start_epoch}.th'
+        if os.path.exists(sd_path):
+            state_dict = torch.load(sd_path)
+            bp_pred.load_state_dict(state_dict)    
 
     ap_pred_loss = []
     bp_pred_loss = []

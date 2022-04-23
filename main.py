@@ -134,10 +134,11 @@ for iter in range(num_sims):
                 # 33-35: (x, y, dist) of rival 1, ..., till 63-65
                 # 66-68: (x, y, dist) of ball
                 # 69-70: (x, y) of self
-                # 71-74: self next decision (dx, dy, vx, vy)
-                # 75: final x label
-                # 76: score label
-                # 77: touchdown or not
+                # 71-72: (vx, vy) of last tick
+                # 73-76: self next decision (dx, dy, vx, vy)
+                # 77: final x label
+                # 78: score label
+                # 79: touchdown or not
                 players_xy = [[game.players[i].x, game.players[i].y] for i in range(2 * num_players)]
                 pxy_perm = list(itertools.permutations(players_xy, 2))
 

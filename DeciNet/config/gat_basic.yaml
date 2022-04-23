@@ -4,8 +4,8 @@ PRED: 'ATT'
 PRETRAIN_DIR: 'DeciNet/pretrained/ap_pred.th'
 
 DATA:
-  TRAINBS: 32
-  TESTBS: 32
+  TRAINBS: 16
+  TESTBS: 16
 
 MODEL:
   GAT:

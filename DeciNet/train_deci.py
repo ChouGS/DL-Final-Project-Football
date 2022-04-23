@@ -7,10 +7,10 @@ import os
 import re
 import shutil
 import argparse
-from tools import make_off_data
-from pred_model import OffenseGAT, DefenseGAT
 
-from tools import find_last_epoch
+from pred_model import OffenseGAT, DefenseGAT
+from tools import find_last_epoch, make_off_data, make_def_data
+from loss import DirectionLoss, VeloLoss
 from pred_model import PredX, PredATT
 from dataset import DecisionDataset
 from vis import vis_loss_curve
@@ -67,15 +67,24 @@ if __name__ == '__main__':
     # Define GAT model
     off_gat = OffenseGAT(cfg.MODEL.GAT)
 
+    # Create save_dir
+    os.makedirs(f'DeciNet/results/{cfg.NAME}/models/off_gat', exist_ok=True)
+
     # Find continuing epoch
     start_epoch = 0
     if args.continue_training:
         start_epoch = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/off_gat')
-        if os.path.exists(f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_{start_epoch}.th'):
-            off_gat.load_state_dict(f'DeciNet/results/{cfg.NAME}/models/def_gat/off_gat_{start_epoch}.th')    
+        sd_path = f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_{start_epoch}.th'
+        if os.path.exists(sd_path):
+            state_dict = torch.load(sd_path)
+            off_gat.load_state_dict(state_dict)    
 
     # Optimizer
     off_optim = optim.Adam(off_gat.parameters(), cfg.MODEL.GAT.LR)
+
+    # Loss functions
+    dir_loss = DirectionLoss()
+    velo_loss = VeloLoss()
 
     # Begin training
     off_score_loss = []
@@ -83,85 +92,169 @@ if __name__ == '__main__':
     off_velo_loss = []
     off_gat_loss = []
     epoch = cfg.MODEL.GAT.EPOCH
-    print('\nTraining after_passing predictor...')
+    print('\nTraining offensive decisionmaker...')
     niters = len(off_train) // cfg.DATA.TRAINBS + 1
     for e in range(start_epoch, epoch):
-        for i, (data, pos, v, x_score) in enumerate(off_trloader):
+        for i, (data, pos, v) in enumerate(off_trloader):
             # GAT forward
             off_decision = off_gat(data)
-            off_data = make_off_data(data, pos, off_decision)
-
-            import pdb
-            pdb.set_trace()
+            off_data = make_off_data(data, off_decision)
 
             # score loss
-            off_pred_data = torch.concat((off_data, pos, off_decision), 2)
-            off_score_loss_val = ap_pred(off_data)
-            def_score_loss_val = ap_pred(def_data)
+            off_score_loss_val = torch.mean(ap_pred(off_data))
             off_score_loss.append(off_score_loss_val.item())
 
-            ap_pred_opt.zero_grad()
-            loss_val.backward()
-            ap_pred_opt.step()
+            off_velo_loss_val = velo_loss(off_decision)
+            off_velo_loss.append(off_velo_loss_val.item())
+
+            off_gat_loss_val = -off_score_loss_val + 0.001 * off_velo_loss_val
+            off_gat_loss.append(off_gat_loss_val.item())
+
+            off_optim.zero_grad()
+            off_gat_loss_val.backward()
+            off_optim.step()
 
             if i % cfg.PRINT_FREQ == 0:
-                print(f'Pred epoch {e}/{epoch}, iter {i + 1}/{niters}: ap_pred_loss={loss_val}')
+                print(f'Offensive epoch {e}/{epoch}, iter {i + 1}/{niters}: \n', 
+                      f'   total loss={round(off_gat_loss_val.item(), 3)}',
+                      f'   score loss={round(off_score_loss_val.item(), 3)}',
+                      f'   velo loss={round(off_velo_loss_val.item(), 3)}\n')
                 
         if e % cfg.SAVE_FREQ == 0:
-            torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/pred/ap_pred_{e}.th')
-    torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/pred/ap_pred_final.th')
-
+            torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_{e}.th')
+    torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_final.th')
+    
+    
+    
+    ### Train defensive GAT model
+    # Define GAT model
     def_gat = DefenseGAT(cfg.MODEL.GAT)
+
+    # Create save_dir
+    os.makedirs(f'DeciNet/results/{cfg.NAME}/models/def_gat', exist_ok=True)
+
+    # Find continuing epoch
+    start_epoch = 0
+    if args.continue_training:
+        start_epoch = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/def_gat')
+        sd_path = f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_{start_epoch}.th'
+        if os.path.exists(sd_path):
+            state_dict = torch.load(sd_path)
+            def_gat.load_state_dict(state_dict)    
+
+    # Optimizer
+    def_optim = optim.Adam(def_gat.parameters(), cfg.MODEL.GAT.LR)
+
+    # Loss functions
+    dir_loss = DirectionLoss()
+    velo_loss = VeloLoss()
+
+    # Begin training
     def_score_loss = []
     def_direction_loss = []
     def_velo_loss = []
     def_gat_loss = []
+    epoch = cfg.MODEL.GAT.EPOCH
+    print('\nTraining defensive decisionmaker...')
+    niters = len(def_train) // cfg.DATA.TRAINBS + 1
+    for e in range(start_epoch, epoch):
+        for i, (data, pos, v) in enumerate(def_trloader):
+            # GAT forward
+            def_decision = def_gat(data)
+            def_data = make_def_data(data, def_decision)
+
+            # score loss
+            def_score_loss_val = torch.mean(ap_pred(def_data))
+            def_score_loss.append(def_score_loss_val.item())
+
+            def_velo_loss_val = velo_loss(def_decision)
+            def_velo_loss.append(def_velo_loss_val.item())
+
+            def_gat_loss_val = def_score_loss_val + 0.001 * def_velo_loss_val
+            def_gat_loss.append(def_gat_loss_val.item())
+
+            def_optim.zero_grad()
+            def_gat_loss_val.backward()
+            def_optim.step()
+
+            if i % cfg.PRINT_FREQ == 0:
+                print(f'Defensive epoch {e}/{epoch}, iter {i + 1}/{niters}: \n', 
+                      f'   total loss={round(def_gat_loss_val.item(), 3)}',
+                      f'   score loss={round(def_score_loss_val.item(), 3)}',
+                      f'   velo loss={round(def_velo_loss_val.item(), 3)}\n')
+                
+        if e % cfg.SAVE_FREQ == 0:
+            torch.save(def_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_{e}.th')
+    torch.save(def_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_final.th')
 
     loss_dict = {
         'off_score_loss': off_score_loss,
-        'off_direction_loss': off_direction_loss,
         'off_velo_loss': off_velo_loss,
         'off_gat_loss': off_gat_loss,
+        'def_score_loss': def_score_loss,
+        'def_velo_loss': def_velo_loss,
+        'def_gat_loss': def_gat_loss
     }
 
     # Plot loss curves
     vis_loss_curve(cfg, loss_dict)
 
-    # Testing predictor
+    # Freeze models
+    off_gat.eval()
+    def_gat.eval()
+
+    # Testing offensive decisionmaker
     nums_seen = 0
-    nums_x = 0
-    acc_loss = 0
-    td_correct = 0
-    print('\nTesting before_passing predictor...')
-    for i, (data, _, x_score, td_label) in enumerate(bp_teloader):
-        
-        logits = bp_pred(data)
-        loss_val = pred_loss(logits, x_score)
-        acc_loss += data.shape[0] * loss_val
-        nums_x += data.shape[0]
+    acc_gat_loss = 0
+    acc_score_loss = 0
+    acc_velo_loss = 0
+    print('\nTesting offensive decisionmaker...')
+    for i, (data, pos, v) in enumerate(off_teloader):
+        # GAT forward
+        off_decision = def_gat(data)
+        off_data = make_def_data(data, off_decision)
 
-        # collect metrics
-        nums_seen += data.shape[0]
+        # score loss
+        off_score_loss_val = torch.mean(ap_pred(off_data))
+        acc_score_loss += off_score_loss_val.item()
 
-    print(f'BP testing results: x_pred_MSE={acc_loss / nums_x}\n')
-    if cfg.MTASK:
-        print(f'                    touchdown_precision={td_correct / nums_seen}')
+        off_velo_loss_val = velo_loss(off_decision)
+        acc_velo_loss += off_velo_loss_val.item()
 
+        off_gat_loss_val = -off_score_loss_val + 0.001 * off_velo_loss_val
+        acc_gat_loss += off_gat_loss_val.item()
+
+        nums_seen += off_data.shape[0]
+
+    print(f'Offensive decision testing results: \n',
+          f'   total loss={round(acc_gat_loss / nums_seen, 3)}',
+          f'   score loss={round(acc_score_loss / nums_seen, 3)}',
+          f'   velo loss={round(acc_velo_loss / nums_seen, 3)}\n')
+
+    # Testing defensive decisionmaker
     nums_seen = 0
-    nums_x = 0
-    acc_loss = 0
-    td_correct = 0
-    print('\nTesting after_passing predictor...')
-    for i, (data, _, x_score, td_label) in enumerate(off_teloader):
-        
-        logits = ap_pred(data)
-        loss_val = pred_loss(logits, x_score)
-        acc_loss += data.shape[0] * loss_val
-        nums_x += data.shape[0]
+    acc_gat_loss = 0
+    acc_score_loss = 0
+    acc_velo_loss = 0
+    print('\nTesting defensive decisionmaker...')
+    for i, (data, pos, v) in enumerate(def_teloader):
+        # GAT forward
+        def_decision = def_gat(data)
+        def_data = make_def_data(data, def_decision)
 
-        # collect metrics
-        nums_seen += data.shape[0]
+        # score loss
+        def_score_loss_val = torch.mean(ap_pred(def_data))
+        acc_score_loss += def_score_loss_val.item()
 
-    print(f'AP testing results: x_pred_MSE={acc_loss / nums_x}\n')
-    if cfg.MTASK:
-        print(f'                    touchdown_precision={td_correct / nums_seen}')
+        def_velo_loss_val = velo_loss(def_decision)
+        acc_velo_loss += def_velo_loss_val.item()
+
+        def_gat_loss_val = -def_score_loss_val + 0.001 * def_velo_loss_val
+        acc_gat_loss += def_gat_loss_val.item()
+
+        nums_seen += def_data.shape[0]
+
+    print(f'Defensive decision testing results: \n',
+          f'   total loss={round(acc_gat_loss / nums_seen, 3)}',
+          f'   score loss={round(acc_score_loss / nums_seen, 3)}',
+          f'   velo loss={round(acc_velo_loss / nums_seen, 3)}\n')
