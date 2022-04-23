@@ -10,4 +10,5 @@
 *.zip
 *raw_data*
 *.yaml
-!attention.yaml
+!PredNet/config/attention.yaml
+!DeciNet/config/gat_basic.yaml

@@ -8,6 +8,7 @@ import re
 import shutil
 import argparse
 
+from tools import find_last_epoch
 from pred_model import PredAE, PredX, PredTD, PredATT
 from dataset import PredictorDataset, AttentionDataset
 from vis import vis_loss_curve
@@ -85,12 +86,21 @@ if __name__ == '__main__':
         ap_ae_opt = optim.Adam(ap_ae.parameters(), lr=cfg.MODEL.AE.LR)
         bp_ae_opt = optim.Adam(bp_ae.parameters(), lr=cfg.MODEL.AE.LR)
 
+        # Find continuing epoch
+        start_epoch = 0
+        if args.continue_training:
+            start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/ae')
+            if os.path.exists(f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_{start_epoch}.th'):
+                ap_ae.load_state_dict(f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_{start_epoch}.th')
+            if os.path.exists(f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_{start_epoch}.th'):
+                bp_ae.load_state_dict(f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_{start_epoch}.th')
+
         # Training
         ap_ae_loss = []
         bp_ae_loss = []
         print('\nTraining before_passing autoencoder...')
         niters = len(bp_train) // cfg.DATA.TRAINBS + 1
-        for e in range(cfg.MODEL.AE.EPOCH):
+        for e in range(start_epoch, cfg.MODEL.AE.EPOCH):
             for i, (data, _, _, _) in enumerate(bp_trloader):
                 _, data_rec = bp_ae(data)
                 
@@ -109,7 +119,7 @@ if __name__ == '__main__':
 
         print('\nTraining after_passing autoencoder...')
         niters = len(ap_train) // cfg.DATA.TRAINBS + 1
-        for e in range(cfg.MODEL.AE.EPOCH):
+        for e in range(start_epoch, cfg.MODEL.AE.EPOCH):
             for i, (data, _, _, _) in enumerate(ap_trloader):
                 _, data_rec = ap_ae(data)
                 
@@ -140,12 +150,21 @@ if __name__ == '__main__':
         # Loss
         td_bce_loss = nn.BCELoss()
 
+        # Find continuing epoch
+        start_epoch = 0
+        if args.continue_training:
+            start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/td')
+            if os.path.exists(f'PredNet/results/{cfg.NAME}/models/td/ap_td_{start_epoch}.th'):
+                ap_td.load_state_dict(f'PredNet/results/{cfg.NAME}/models/td/ap_td_{start_epoch}.th')
+            if os.path.exists(f'PredNet/results/{cfg.NAME}/models/td/bp_td_{start_epoch}.th'):
+                bp_td.load_state_dict(f'PredNet/results/{cfg.NAME}/models/td/bp_td_{start_epoch}.th')
+
         # Training
         ap_td_loss = []
         bp_td_loss = []
         print('\nTraining before_passing touchdown...')
         niters = len(bp_train) // cfg.DATA.TRAINBS + 1
-        for e in range(cfg.MODEL.TD.EPOCH):
+        for e in range(start_epoch, cfg.MODEL.TD.EPOCH):
             for i, (data, _, _, td_label) in enumerate(bp_trloader):
                 # Prepare one-hot label
                 td_label1h = torch.zeros(data.shape[0], 2)
@@ -169,7 +188,7 @@ if __name__ == '__main__':
 
         print('\nTraining after_passing touchdown...')
         niters = len(ap_train) // cfg.DATA.TRAINBS + 1
-        for e in range(cfg.MODEL.TD.EPOCH):
+        for e in range(start_epoch, cfg.MODEL.TD.EPOCH):
             for i, (data, _, _, td_label) in enumerate(ap_trloader):
                 # Prepare one-hot label
                 td_label1h = torch.zeros(data.shape[0], 2)
@@ -209,12 +228,21 @@ if __name__ == '__main__':
         ap_pred_opt = optim.Adam(ap_pred.parameters(), lr=cfg.MODEL.ATT.LR)
         bp_pred_opt = optim.Adam(bp_pred.parameters(), lr=cfg.MODEL.ATT.LR)
         epoch = cfg.MODEL.ATT.EPOCH
-    
+
+    # Find continuing epoch
+    start_epoch = 0
+    if args.continue_training:
+        start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/pred')
+        if os.path.exists(f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{start_epoch}.th'):
+            ap_pred.load_state_dict(f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{start_epoch}.th')
+        if os.path.exists(f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_{start_epoch}.th'):
+            bp_pred.load_state_dict(f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_{start_epoch}.th')
+
     ap_pred_loss = []
     bp_pred_loss = []
     print('\nTraining before_passing predictor...')
     niters = len(bp_tr_notd) // cfg.DATA.TRAINBS + 1
-    for e in range(0):
+    for e in range(start_epoch, 0):
         for i, (data, _, x_label, _) in enumerate(bp_tr_notd_loader):
             if cfg.USE_AE:
                 data_encoded, _ = bp_ae(data)
@@ -239,7 +267,7 @@ if __name__ == '__main__':
 
     print('\nTraining after_passing predictor...')
     niters = len(ap_tr_notd) // cfg.DATA.TRAINBS + 1
-    for e in range(epoch):
+    for e in range(start_epoch, epoch):
         for i, (data, _, x_label, _) in enumerate(ap_tr_notd_loader):
             if cfg.USE_AE:
                 data_encoded, _ = ap_ae(data)
@@ -278,15 +306,6 @@ if __name__ == '__main__':
 
     # Plot loss curves
     vis_loss_curve(cfg, loss_dict)
-
-    if cfg.MTASK:
-        torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_td.th')
-        torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_td.th')
-    if cfg.USE_AE:
-        torch.save(ap_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_ae.th')
-        torch.save(bp_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_ae.th')
-    torch.save(ap_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_pred.th')
-    torch.save(bp_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_pred.th')
 
     # Testing predictor
     nums_seen = 0

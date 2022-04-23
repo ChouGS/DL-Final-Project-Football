@@ -1,0 +1,39 @@
+from yacs.config import CfgNode as CN
+
+_C = CN()
+
+_C.NAME = ''
+_C.DATA_DIR = ''
+_C.PRINT_FREQ = 50
+_C.SAVE_FREQ = 5
+_C.PRETRAIN_DIR = ''
+
+_C.DATA = CN()
+
+_C.DATA.TESTRATIO = 0.2
+_C.DATA.TRAINBS = 256
+_C.DATA.TESTBS = 1024
+
+_C.PRED = 'MLP'
+
+_C.MODEL = CN()
+
+_C.MODEL.GAT = CN()
+_C.MODEL.GAT.LR = 0.001
+_C.MODEL.GAT.EPOCH = 35
+
+_C.MODEL.GAT.MSG = CN()
+_C.MODEL.GAT.MSG.USE_BN = True
+_C.MODEL.GAT.MSG.STRUCTURE = [8, 8]
+
+_C.MODEL.GAT.AGG = CN()
+_C.MODEL.GAT.AGG.USE_BN = True
+_C.MODEL.GAT.AGG.STRUCTURE = [16, 32]
+_C.MODEL.GAT.AGG.NHEAD = 4
+_C.MODEL.GAT.AGG.POOLING = 'Max'
+
+_C.MODEL.GAT.OUTP = CN()
+_C.MODEL.GAT.OUTP.STRUCTURE = [32, 16]
+
+def get_default_cfg():
+    return _C.clone()
