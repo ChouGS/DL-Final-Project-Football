@@ -200,7 +200,7 @@ class PredGAT(nn.Module):
             self.att_v = nn.Sequential(OrderedDict(att_v))
         
         self.attention = nn.MultiheadAttention(aggr_structure[i], num_heads=cfg.AGG.NHEAD)
-        self.aggregation = eval(f'nn.{cfg.AGG.POOLING}Pooling2d(23, 1)')
+        self.aggregation = eval(f'nn.{cfg.AGG.POOLING}Pool2d((23, 1))')
 
         # Output block
         outp_structure = [aggr_structure[-1] * 2] + cfg.OUTP.STRUCTURE
@@ -214,8 +214,9 @@ class PredGAT(nn.Module):
     def forward(self, x):
         # Shape of x: bs * 23 * 3 (x, y, team_id)
         message = self.message(x)
-        summed_msg, _ = torch.max(message, 0, keepdim=True)
-        summed_msg = torch.Tensor.repeat(summed_msg, (message.shape[0], 1)) - message
+        summed_msg, _ = torch.max(message, 1, keepdim=True)
+        
+        summed_msg = torch.Tensor.repeat(summed_msg, (1, message.shape[1], 1)) - message
 
         q = self.att_q(summed_msg)
         k = self.att_k(summed_msg)
@@ -223,11 +224,27 @@ class PredGAT(nn.Module):
 
         att, _ = self.attention(q, k, v)
         aggr_att = self.aggregation(att)
-        aggr_att = torch.Tensor.repeat(aggr_att, (1, aggr_att.shape[1], 1))
+        aggr_att = torch.Tensor.repeat(aggr_att, (1, att.shape[1], 1))
         aggr_att = torch.cat([att, aggr_att], -1).transpose(1, 2)
 
         outp = self.outp1(aggr_att)
         outp = outp.transpose(1, 2)
         outp = self.outp2(outp)
 
-        return outp
+        return self.crop_decision(outp)
+
+    def crop_decision(self, out):
+        pass
+
+
+class OffenseGAT(PredGAT):
+    def __init__(self, cfg) -> None:
+        super(OffenseGAT, self).__init__(cfg)
+    def crop_decision(self, out):
+        return out[:, :11, :]
+
+class DefenseGAT(PredGAT):
+    def __init__(self, cfg) -> None:
+        super(DefenseGAT, self).__init__(cfg)
+    def crop_decision(self, out):
+        return out[:, 11:22, :]

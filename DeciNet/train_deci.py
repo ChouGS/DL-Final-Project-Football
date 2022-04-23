@@ -7,7 +7,8 @@ import os
 import re
 import shutil
 import argparse
-from pred_model import PredGAT
+from tools import make_off_data
+from pred_model import OffenseGAT, DefenseGAT
 
 from tools import find_last_epoch
 from pred_model import PredX, PredATT
@@ -31,9 +32,9 @@ cfg = get_default_cfg()
 cfg.merge_from_file(args.config)
 cfg.freeze()
 
-os.makedirs(f'PredNet/results/{cfg.NAME}/config', exist_ok=True)
-os.makedirs(f'PredNet/results/{cfg.NAME}/models', exist_ok=True)
-shutil.copy(args.config, f'PredNet/results/{cfg.NAME}/config/{args.config.split("/")[-1]}')
+os.makedirs(f'DeciNet/results/{cfg.NAME}/config', exist_ok=True)
+os.makedirs(f'DeciNet/results/{cfg.NAME}/models', exist_ok=True)
+shutil.copy(args.config, f'DeciNet/results/{cfg.NAME}/config/{args.config.split("/")[-1]}')
 
 if __name__ == '__main__':
     # Load data
@@ -59,12 +60,12 @@ if __name__ == '__main__':
         ap_pred = PredX(cfg.MODEL.X)
     elif cfg.PRED == 'ATT':
         ap_pred = PredATT(cfg.MODEL.ATT)
-    ap_pred.load_state_dict(cfg.PRETRAIN_DIR)
+    ap_pred.load_state_dict(torch.load(open(cfg.PRETRAIN_DIR, 'rb')))
     ap_pred.eval()
 
     ### Train offensive GAT model
     # Define GAT model
-    off_gat = PredGAT(cfg.MODEL.GAT)
+    off_gat = OffenseGAT(cfg.MODEL.GAT)
 
     # Find continuing epoch
     start_epoch = 0
@@ -72,6 +73,9 @@ if __name__ == '__main__':
         start_epoch = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/off_gat')
         if os.path.exists(f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_{start_epoch}.th'):
             off_gat.load_state_dict(f'DeciNet/results/{cfg.NAME}/models/def_gat/off_gat_{start_epoch}.th')    
+
+    # Optimizer
+    off_optim = optim.Adam(off_gat.parameters(), cfg.MODEL.GAT.LR)
 
     # Begin training
     off_score_loss = []
@@ -84,12 +88,17 @@ if __name__ == '__main__':
     for e in range(start_epoch, epoch):
         for i, (data, pos, v, x_score) in enumerate(off_trloader):
             # GAT forward
-            decision = off_gat(data)
-            
+            off_decision = off_gat(data)
+            off_data = make_off_data(data, pos, off_decision)
+
+            import pdb
+            pdb.set_trace()
+
             # score loss
-            pred_data = torch.concat((data, pos, decision), 2)
-            score_loss_val = ap_pred(pred_data)
-            off_score_loss.append(score_loss_val.item())
+            off_pred_data = torch.concat((off_data, pos, off_decision), 2)
+            off_score_loss_val = ap_pred(off_data)
+            def_score_loss_val = ap_pred(def_data)
+            off_score_loss.append(off_score_loss_val.item())
 
             ap_pred_opt.zero_grad()
             loss_val.backward()
@@ -99,8 +108,14 @@ if __name__ == '__main__':
                 print(f'Pred epoch {e}/{epoch}, iter {i + 1}/{niters}: ap_pred_loss={loss_val}')
                 
         if e % cfg.SAVE_FREQ == 0:
-            torch.save(off_gat.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{e}.th')
-    torch.save(off_gat.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_final.th')
+            torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/pred/ap_pred_{e}.th')
+    torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/pred/ap_pred_final.th')
+
+    def_gat = DefenseGAT(cfg.MODEL.GAT)
+    def_score_loss = []
+    def_direction_loss = []
+    def_velo_loss = []
+    def_gat_loss = []
 
     loss_dict = {
         'off_score_loss': off_score_loss,

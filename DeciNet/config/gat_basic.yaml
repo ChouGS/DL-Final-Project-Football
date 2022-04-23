@@ -13,3 +13,10 @@ MODEL:
     EPOCH: 20
     AGG:
       NHEAD: 4
+  ATT:
+    LR: 0.001
+    EPOCH: 1
+    NHEAD: 4
+    USE_BN: True
+    QKV_STRUCTURE: [16, 64, 128, 64, 16]
+    OUTP_CHN: [8, 1]
