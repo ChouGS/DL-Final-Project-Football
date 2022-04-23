@@ -5,6 +5,7 @@ _C = CN()
 _C.NAME = ''
 _C.DATA_DIR = ''
 _C.PRINT_FREQ = 50
+_C.SAVE_FREQ = 5
 
 _C.DATA = CN()
 

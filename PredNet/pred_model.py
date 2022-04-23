@@ -4,6 +4,9 @@ from collections import OrderedDict
 
 
 class PredTD(nn.Module):
+    '''
+    Bi-classification MLP to predict touchdown label
+    '''
     def __init__(self, cfg) -> None:
         super(PredTD, self).__init__()
         latent_dims = cfg.STRUCTURE
@@ -23,6 +26,9 @@ class PredTD(nn.Module):
         return self.net(x)
 
 class PredX(nn.Module):
+    '''
+    MLP network for X label prediction
+    '''
     def __init__(self, cfg) -> None:
         super(PredX, self).__init__()
         latent_dims = cfg.STRUCTURE
@@ -41,6 +47,9 @@ class PredX(nn.Module):
         return self.net(x)
 
 class PredAE(nn.Module):
+    '''
+    Autoencoder model to reduce feature dim
+    '''
     def __init__(self, cfg):
         super(PredAE, self).__init__()
         latent_dim = cfg.LAT_D
@@ -49,6 +58,7 @@ class PredAE(nn.Module):
         encoder_structure = [feature_dim] + encoder_structure + [latent_dim]
         decoder_structure = list(reversed(encoder_structure))
 
+        # Encoder block
         self.encoder = []
         for i in range(1, len(encoder_structure) - 1):
             self.encoder.append((f'fc{i+1}', nn.Linear(encoder_structure[i-1], encoder_structure[i])))
@@ -56,6 +66,7 @@ class PredAE(nn.Module):
         self.encoder.append(('fc_outp', nn.Linear(encoder_structure[-2], encoder_structure[-1])))
         self.encoder = nn.Sequential(OrderedDict(self.encoder))
 
+        # Decoder block
         self.decoder = []
         for i in range(1, len(decoder_structure) - 1):
             self.decoder.append((f'fc{i+1}', nn.Linear(decoder_structure[i-1], decoder_structure[i])))
@@ -72,9 +83,10 @@ class PredATT(nn.Module):
     def __init__(self, cfg) -> None:
         super(PredATT, self).__init__()
         latent_dim = cfg.QKV_STRUCTURE
-        self.attention = nn.MultiheadAttention(latent_dim[-1], num_heads=cfg.NHEAD)
         latent_dim = [6] + latent_dim
         outp_dim = [latent_dim[-1] * 2] + cfg.OUTP_CHN
+
+        # QKV block
         if cfg.USE_BN:
             q_structure = []
             k_structure = []
@@ -106,6 +118,11 @@ class PredATT(nn.Module):
             self.q = nn.Sequential(OrderedDict(q_structure))
             self.k = nn.Sequential(OrderedDict(k_structure))
             self.v = nn.Sequential(OrderedDict(v_structure))
+
+        # Attention block
+        self.attention = nn.MultiheadAttention(latent_dim[-1], num_heads=cfg.NHEAD)
+
+        # Output block
         outp_structure = [(f'outp{i}', nn.Conv1d(outp_dim[i-1], outp_dim[i], 1)) for i in range(1, len(outp_dim))]
         outp_structure.append(('flatten', nn.Flatten(1, -1)))
         outp_structure.append(('fc_final', nn.Linear(23, 1)))

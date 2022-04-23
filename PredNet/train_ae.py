@@ -18,6 +18,8 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 parser = argparse.ArgumentParser()
 parser.add_argument("-cfg", "--config", help="[Required] the path to a .yaml file to use as the config.", \
                     type=str, required=True)
+parser.add_argument("-cont", "--continue_training", help="[Optional] whether to resume from checkpoints.", \
+                    required=False, action='store_true')
 args = parser.parse_args()
 args.config = re.sub('\\\\', '/', args.config)
 
@@ -71,6 +73,7 @@ if __name__ == '__main__':
 
     ### Training autoencoder network
     if cfg.USE_AE:
+        os.makedirs(f'PredNet/results/{cfg.NAME}/models/ae', exist_ok=True)
         # Define autoencoder model
         ap_ae = PredAE(cfg.MODEL.AE)
         bp_ae = PredAE(cfg.MODEL.AE)
@@ -100,6 +103,9 @@ if __name__ == '__main__':
 
                 if i % cfg.PRINT_FREQ == 0:
                     print(f'AE epoch {e}/{cfg.MODEL.AE.EPOCH}, iter {i + 1}/{niters}: bp_rec_loss={loss_val}')
+            if e % cfg.SAVE_FREQ == 0:
+                torch.save(bp_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_{e}.th')
+        torch.save(bp_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_final.th')
 
         print('\nTraining after_passing autoencoder...')
         niters = len(ap_train) // cfg.DATA.TRAINBS + 1
@@ -116,9 +122,13 @@ if __name__ == '__main__':
 
                 if i % cfg.PRINT_FREQ == 0:
                     print(f'AE epoch {e}/{cfg.MODEL.AE.EPOCH}, iter {i + 1}/{niters}: ap_rec_loss={loss_val}')
+            if e % cfg.SAVE_FREQ == 0:
+                torch.save(ap_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_{e}.th')
+        torch.save(ap_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_final.th')
 
     ### Train touchdown network
     if cfg.MTASK:
+        os.makedirs(f'PredNet/results/{cfg.NAME}/models/td', exist_ok=True)
         # Define touchdown predictor
         ap_td = PredTD(cfg.MODEL.TD)
         bp_td = PredTD(cfg.MODEL.TD)
@@ -153,6 +163,10 @@ if __name__ == '__main__':
                 if i % cfg.PRINT_FREQ == 0:
                     print(f'TD epoch {e}/{cfg.MODEL.TD.EPOCH}, iter {i + 1}/{niters}: bp_td_loss={loss_val}')
 
+            if e % cfg.SAVE_FREQ == 0:
+                torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/td/bp_td_{e}.th')
+        torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/td/bp_td_final.th')
+
         print('\nTraining after_passing touchdown...')
         niters = len(ap_train) // cfg.DATA.TRAINBS + 1
         for e in range(cfg.MODEL.TD.EPOCH):
@@ -172,11 +186,16 @@ if __name__ == '__main__':
 
                 if i % cfg.PRINT_FREQ == 0:
                     print(f'TD epoch {e}/{cfg.MODEL.TD.EPOCH}, iter {i + 1}/{niters}: ap_td_loss={loss_val}')
+            
+            if e % cfg.SAVE_FREQ == 0:
+                torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/td/ap_td_{e}.th')
+        torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/td/ap_td_final.th')
 
         bp_ae.eval()
         ap_ae.eval()
 
     # Using the trained autoencoder to train a predictor (only on no-touchdown model)
+    os.makedirs(f'PredNet/results/{cfg.NAME}/models/pred', exist_ok=True)
     pred_loss = nn.MSELoss()
     if cfg.PRED == 'MLP':
         bp_pred = PredX(cfg.MODEL.X)
@@ -213,6 +232,10 @@ if __name__ == '__main__':
 
             if i % cfg.PRINT_FREQ == 0:
                 print(f'Pred epoch {e}/{epoch}, iter {i + 1}/{niters}: bp_pred_loss={loss_val}')
+            
+        if e % cfg.SAVE_FREQ == 0:
+            torch.save(bp_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_{e}.th')
+    torch.save(bp_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_final.th')
 
     print('\nTraining after_passing predictor...')
     niters = len(ap_tr_notd) // cfg.DATA.TRAINBS + 1
@@ -234,7 +257,14 @@ if __name__ == '__main__':
 
             if i % cfg.PRINT_FREQ == 0:
                 print(f'Pred epoch {e}/{epoch}, iter {i + 1}/{niters}: ap_pred_loss={loss_val}')
-    
+                
+        if e % cfg.SAVE_FREQ == 0:
+            torch.save(ap_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{e}.th')
+    torch.save(ap_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_final.th')
+
+    bp_pred.eval()
+    ap_pred.eval()
+
     loss_dict = {
         'ap_x_loss': ap_pred_loss,
         'bp_x_loss': bp_pred_loss
@@ -249,7 +279,6 @@ if __name__ == '__main__':
     # Plot loss curves
     vis_loss_curve(cfg, loss_dict)
 
-    os.makedirs(f'PredNet/results/{cfg.NAME}/models', exist_ok=True)
     if cfg.MTASK:
         torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/ap_td.th')
         torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/bp_td.th')
@@ -331,4 +360,3 @@ if __name__ == '__main__':
     print(f'AP testing results: x_pred_MSE={acc_loss / nums_x}\n')
     if cfg.MTASK:
         print(f'                    touchdown_precision={td_correct / nums_seen}')
-    
