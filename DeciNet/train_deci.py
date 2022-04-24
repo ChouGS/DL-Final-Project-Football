@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-cfg", "--config", help="[Required] the path to a .yaml file to use as the config.", \
                     type=str, required=True)
 parser.add_argument("-cont", "--continue_training", help="[Optional] whether to resume from checkpoints.", \
-                    required=False, action='store_true')
+                    type=bool, required=False, default=False)
 args = parser.parse_args()
 args.config = re.sub('\\\\', '/', args.config)
 
@@ -83,11 +83,12 @@ if __name__ == '__main__':
     # Find continuing epoch
     start_epoch = 0
     if args.continue_training:
-        start_epoch = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/off_gat')
-        sd_path = f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_{start_epoch}.th'
-        if os.path.exists(sd_path):
+        start_epoch, sd_path = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/off_gat')
+        if sd_path is not None:
             state_dict = torch.load(sd_path)
-            off_gat.load_state_dict(state_dict)    
+            off_gat.load_state_dict(state_dict)   
+        if start_epoch == -1:
+            start_epoch = cfg.MODEL.GAT.EPOCH 
 
     # Optimizer
     off_optim = optim.Adam(off_gat.parameters(), cfg.MODEL.GAT.LR)
@@ -122,7 +123,7 @@ if __name__ == '__main__':
             off_direction_loss_val = dir_loss(off_decision, v)
             off_direction_loss.append(off_direction_loss_val.item())
 
-            off_gat_loss_val = -10 * off_score_loss_val + 2 * off_direction_loss_val + off_velo_loss_val
+            off_gat_loss_val = -1000 * off_score_loss_val + 2 * off_direction_loss_val + off_velo_loss_val
             off_gat_loss.append(off_gat_loss_val.item())
 
             off_optim.zero_grad()
@@ -152,11 +153,12 @@ if __name__ == '__main__':
     # Find continuing epoch
     start_epoch = 0
     if args.continue_training:
-        start_epoch = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/def_gat')
-        sd_path = f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_{start_epoch}.th'
-        if os.path.exists(sd_path):
+        start_epoch, sd_path = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/def_gat')
+        if sd_path is not None:
             state_dict = torch.load(sd_path)
             def_gat.load_state_dict(state_dict)    
+        if start_epoch == -1:
+            start_epoch = cfg.MODEL.GAT.EPOCH 
 
     # Optimizer
     def_optim = optim.Adam(def_gat.parameters(), cfg.MODEL.GAT.LR)
@@ -189,7 +191,7 @@ if __name__ == '__main__':
             def_direction_loss_val = dir_loss(def_decision, v)
             def_direction_loss.append(def_direction_loss_val.item())
 
-            def_gat_loss_val = 10 * def_score_loss_val + 2 * def_direction_loss_val + def_velo_loss_val
+            def_gat_loss_val = 1000 * def_score_loss_val + 2 * def_direction_loss_val + def_velo_loss_val
             def_gat_loss.append(def_gat_loss_val.item())
 
             def_optim.zero_grad()
@@ -229,6 +231,7 @@ if __name__ == '__main__':
     nums_seen = 0
     acc_gat_loss = 0
     acc_score_loss = 0
+    acc_direction_loss = 0
     acc_velo_loss = 0
     print('\nTesting offensive decisionmaker...')
     for i, (data, pos, v) in enumerate(off_teloader):
@@ -244,9 +247,9 @@ if __name__ == '__main__':
         acc_velo_loss += off_velo_loss_val.item()
 
         off_direction_loss_val = dir_loss(off_decision, v)
-        off_direction_loss += off_direction_loss_val.item()
+        acc_direction_loss += off_direction_loss_val.item()
 
-        off_gat_loss_val = -10 * off_score_loss_val + 2 * off_direction_loss_val + off_velo_loss_val
+        off_gat_loss_val = -1000 * off_score_loss_val + 2 * off_direction_loss_val + off_velo_loss_val
         acc_gat_loss += off_gat_loss_val.item()
 
         nums_seen += off_data.shape[0]
@@ -254,6 +257,7 @@ if __name__ == '__main__':
     print(f'Offensive decision testing results: \n',
           f'   total loss={round(acc_gat_loss / nums_seen, 3)}',
           f'   score loss={round(acc_score_loss / nums_seen, 3)}',
+          f'   direction loss={round(acc_direction_loss / nums_seen, 3)}',
           f'   velo loss={round(acc_velo_loss / nums_seen, 3)}\n')
 
     # Testing defensive decisionmaker
@@ -275,9 +279,9 @@ if __name__ == '__main__':
         acc_velo_loss += def_velo_loss_val.item()
         
         def_direction_loss_val = dir_loss(def_decision, v)
-        def_direction_loss += def_direction_loss_val.item()
+        acc_direction_loss += def_direction_loss_val.item()
 
-        def_gat_loss_val = -10 * def_score_loss_val + 2 * def_direction_loss_val + def_velo_loss_val
+        def_gat_loss_val = 1000 * def_score_loss_val + 2 * def_direction_loss_val + def_velo_loss_val
         acc_gat_loss += def_gat_loss_val.item()
 
         nums_seen += def_data.shape[0]
@@ -285,4 +289,5 @@ if __name__ == '__main__':
     print(f'Defensive decision testing results: \n',
           f'   total loss={round(acc_gat_loss / nums_seen, 3)}',
           f'   score loss={round(acc_score_loss / nums_seen, 3)}',
+          f'   direction loss={round(acc_direction_loss / nums_seen, 3)}',
           f'   velo loss={round(acc_velo_loss / nums_seen, 3)}\n')

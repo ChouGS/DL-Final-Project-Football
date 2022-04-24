@@ -8,8 +8,8 @@ class DirectionLoss(nn.Module):
 
     def forward(self, dir1, dir2):
         cos_sim = torch.cosine_similarity(dir1, dir2, dim=2).flatten()
-        base = torch.ones_like(cos_sim) * self.base
-        return torch.mean(torch.pow(base, cos_sim))
+
+        return torch.mean(1 / 1.1 + cos_sim)
 
 class VeloLoss(nn.Module):
     def __init__(self, base=10, max_v=10) -> None:

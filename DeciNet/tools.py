@@ -7,11 +7,15 @@ def find_last_epoch(root):
     res_fname = None
     if os.path.exists(root):
         for fname in os.listdir(root):
-            cur_epoch = fname.split('.')[0].split('/')[-1]
+            cur_epoch = fname.split('.')[0].split('_')[-1]
             if cur_epoch.isdigit():
                 if int(cur_epoch) > epoch:
                     epoch = int(cur_epoch)
                     res_fname = os.path.join(root, fname)
+            elif cur_epoch == 'final':
+                epoch = -1
+                res_fname = os.path.join(root, fname)
+                break
     return epoch, res_fname
 
 def make_off_data(data, decision):
@@ -19,7 +23,6 @@ def make_off_data(data, decision):
         data: [bs, 23, 2], positions of the players+ball
         decision: [bs, 11, 2], decision of each offensive player
     '''
-    bsize = data.shape[0]
     nplayers = decision.shape[1]
 
     off_data = data.unsqueeze(1)

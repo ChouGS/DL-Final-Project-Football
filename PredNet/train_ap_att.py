@@ -76,9 +76,8 @@ if __name__ == '__main__':
         # Find continuing epoch
         start_epoch = 0
         if args.continue_training:
-            start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/ae')
-            sd_path = f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_{start_epoch}.th'
-            if os.path.exists(sd_path):
+            start_epoch, sd_path = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/ae')
+            if sd_path is not None:
                 state_dict = torch.load(sd_path)
                 ap_ae.load_state_dict(state_dict)    
 
@@ -119,9 +118,8 @@ if __name__ == '__main__':
         # Find continuing epoch
         start_epoch = 0
         if args.continue_training:
-            start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/td')
-            sd_path = f'PredNet/results/{cfg.NAME}/models/td/ap_td_{start_epoch}.th'
-            if os.path.exists(sd_path):
+            start_epoch, sd_path = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/td')
+            if sd_path is not None:
                 state_dict = torch.load(sd_path)
                 ap_td.load_state_dict(state_dict)    
 
@@ -169,9 +167,8 @@ if __name__ == '__main__':
     # Find continuing epoch
     start_epoch = 0
     if args.continue_training:
-        start_epoch = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/pred')
-        sd_path = f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{start_epoch}.th'
-        if os.path.exists(sd_path):
+        start_epoch, sd_path = find_last_epoch(f'PredNet/results/{cfg.NAME}/models/pred')
+        if sd_path is not None:
             state_dict = torch.load(sd_path)
             ap_pred.load_state_dict(state_dict)    
 

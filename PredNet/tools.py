@@ -1,13 +1,11 @@
 import os
 
-from torch import isin
-
 def find_last_epoch(root):
     epoch = 0
     res_fname = None
     if os.path.exists(root):
         for fname in os.listdir(root):
-            cur_epoch = fname.split('.')[0].split('/')[-1]
+            cur_epoch = fname.split('.')[0].split('_')[-1]
             if cur_epoch.isdigit():
                 if int(cur_epoch) > epoch:
                     epoch = int(cur_epoch)

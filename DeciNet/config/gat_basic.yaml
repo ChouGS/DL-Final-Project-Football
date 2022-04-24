@@ -1,4 +1,4 @@
-NAME: 'attention'
+NAME: 'GAT_dloss'
 DATA_DIR: 'raw_data/11oLpHcL/synthesized'
 PRED: 'ATT'
 PRETRAIN_DIR: 'DeciNet/pretrained/ap_pred.th'
@@ -9,7 +9,7 @@ DATA:
 
 MODEL:
   GAT:
-    LR: 0.001
+    LR: 0.01
     EPOCH: 20
     AGG:
       NHEAD: 4
