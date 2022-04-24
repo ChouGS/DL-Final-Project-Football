@@ -33,38 +33,27 @@ shutil.copy(args.config, f'PredNet/results/{cfg.NAME}/config/{args.config.split(
 if __name__ == '__main__':
     # Load data
     ap_data = np.load(os.path.join(cfg.DATA_DIR, 'data_after_passing.npy'))
-    bp_data = np.load(os.path.join(cfg.DATA_DIR, 'data_before_passing.npy'))
 
     if cfg.PRED == 'MLP':
         ap_train = PredictorDataset(ap_data[:int(round(ap_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))])
-        bp_train = PredictorDataset(bp_data[:int(round(bp_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))])
         ap_test = PredictorDataset(ap_data[int(round(ap_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):])
-        bp_test = PredictorDataset(bp_data[int(round(bp_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):])
     elif cfg.PRED == 'ATT':
         ap_train = AttentionDataset(ap_data[:int(round(ap_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))])
-        bp_train = AttentionDataset(bp_data[:int(round(bp_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))])
         ap_test = AttentionDataset(ap_data[int(round(ap_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):])
-        bp_test = AttentionDataset(bp_data[int(round(bp_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):])
     else:
         raise NotImplementedError(f'Not supported predictor type {cfg.PRED}')
 
     ap_trloader = DataLoader(ap_train, batch_size=cfg.DATA.TRAINBS, shuffle=True)
-    bp_trloader = DataLoader(bp_train, batch_size=cfg.DATA.TRAINBS, shuffle=True)
     ap_teloader = DataLoader(ap_test, batch_size=cfg.DATA.TESTBS, shuffle=True)
-    bp_teloader = DataLoader(bp_test, batch_size=cfg.DATA.TESTBS, shuffle=True)
 
     # Load data for multitasking
     if cfg.MTASK:
         ap_tr_notd = PredictorDataset(ap_data[ap_data[:, -1] == 0])
-        bp_tr_notd = PredictorDataset(bp_data[bp_data[:, -1] == 0])
         ap_tr_notd_loader = DataLoader(ap_tr_notd, batch_size=cfg.DATA.TRAINBS, shuffle=True)    # No-touchdown data
-        bp_tr_notd_loader = DataLoader(bp_tr_notd, batch_size=cfg.DATA.TRAINBS, shuffle=True)    # No-touchdown data
         cfg.MODEL.TD.IN_DIM = cfg.DATA.FDIM
     else:
         ap_tr_notd = ap_train
-        bp_tr_notd = bp_train
         ap_tr_notd_loader = ap_trloader
-        bp_tr_notd_loader = bp_trloader
 
     cfg.MODEL.X.IN_DIM = cfg.MODEL.AE.LAT_D if cfg.USE_AE else cfg.DATA.FDIM
     if cfg.USE_AE:
@@ -77,14 +66,12 @@ if __name__ == '__main__':
         os.makedirs(f'PredNet/results/{cfg.NAME}/models/ae', exist_ok=True)
         # Define autoencoder model
         ap_ae = PredAE(cfg.MODEL.AE)
-        bp_ae = PredAE(cfg.MODEL.AE)
 
         # Reconstruction loss
         rec_loss = nn.MSELoss()
 
         # Optimizer
         ap_ae_opt = optim.Adam(ap_ae.parameters(), lr=cfg.MODEL.AE.LR)
-        bp_ae_opt = optim.Adam(bp_ae.parameters(), lr=cfg.MODEL.AE.LR)
 
         # Find continuing epoch
         start_epoch = 0
@@ -94,32 +81,9 @@ if __name__ == '__main__':
             if os.path.exists(sd_path):
                 state_dict = torch.load(sd_path)
                 ap_ae.load_state_dict(state_dict)    
-            sd_path = f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_{start_epoch}.th'
-            if os.path.exists(sd_path):
-                state_dict = torch.load(sd_path)
-                bp_ae.load_state_dict(state_dict)    
 
         # Training
         ap_ae_loss = []
-        bp_ae_loss = []
-        print('\nTraining before_passing autoencoder...')
-        niters = len(bp_train) // cfg.DATA.TRAINBS + 1
-        for e in range(start_epoch, cfg.MODEL.AE.EPOCH):
-            for i, (data, _, _, _) in enumerate(bp_trloader):
-                _, data_rec = bp_ae(data)
-                
-                loss_val = rec_loss(data_rec, data)
-                bp_ae_loss.append(loss_val.item())
-
-                bp_ae_opt.zero_grad()
-                loss_val.backward()
-                bp_ae_opt.step()
-
-                if i % cfg.PRINT_FREQ == 0:
-                    print(f'AE epoch {e}/{cfg.MODEL.AE.EPOCH}, iter {i + 1}/{niters}: bp_rec_loss={loss_val}')
-            if e % cfg.SAVE_FREQ == 0:
-                torch.save(bp_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_{e}.th')
-        torch.save(bp_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ae/bp_ae_final.th')
 
         print('\nTraining after_passing autoencoder...')
         niters = len(ap_train) // cfg.DATA.TRAINBS + 1
@@ -140,19 +104,14 @@ if __name__ == '__main__':
                 torch.save(ap_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_{e}.th')
         torch.save(ap_ae.state_dict(), f'PredNet/results/{cfg.NAME}/models/ae/ap_ae_final.th')
 
-        bp_ae.eval()
-        ap_ae.eval()
-
     ### Train touchdown network
     if cfg.MTASK:
         os.makedirs(f'PredNet/results/{cfg.NAME}/models/td', exist_ok=True)
         # Define touchdown predictor
         ap_td = PredTD(cfg.MODEL.TD)
-        bp_td = PredTD(cfg.MODEL.TD)
 
         # Optimizer
         ap_td_opt = optim.Adam(ap_td.parameters(), lr=cfg.MODEL.TD.LR)
-        bp_td_opt = optim.Adam(bp_td.parameters(), lr=cfg.MODEL.TD.LR)
 
         # Loss
         td_bce_loss = nn.BCELoss()
@@ -165,37 +124,9 @@ if __name__ == '__main__':
             if os.path.exists(sd_path):
                 state_dict = torch.load(sd_path)
                 ap_td.load_state_dict(state_dict)    
-            sd_path = f'PredNet/results/{cfg.NAME}/models/td/bp_td_{start_epoch}.th'
-            if os.path.exists(sd_path):
-                state_dict = torch.load(sd_path)
-                bp_td.load_state_dict(state_dict)    
 
         # Training
         ap_td_loss = []
-        bp_td_loss = []
-        print('\nTraining before_passing touchdown...')
-        niters = len(bp_train) // cfg.DATA.TRAINBS + 1
-        for e in range(start_epoch, cfg.MODEL.TD.EPOCH):
-            for i, (data, _, _, td_label) in enumerate(bp_trloader):
-                # Prepare one-hot label
-                td_label1h = torch.zeros(data.shape[0], 2)
-                td_label1h[torch.arange(data.shape[0]).long(), td_label] = 1
-
-                td_logit = bp_td(data)
-                
-                loss_val = td_bce_loss(td_logit, td_label1h)
-                bp_td_loss.append(loss_val.item())
-
-                bp_td_opt.zero_grad()
-                loss_val.backward()
-                bp_td_opt.step()
-
-                if i % cfg.PRINT_FREQ == 0:
-                    print(f'TD epoch {e}/{cfg.MODEL.TD.EPOCH}, iter {i + 1}/{niters}: bp_td_loss={loss_val}')
-
-            if e % cfg.SAVE_FREQ == 0:
-                torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/td/bp_td_{e}.th')
-        torch.save(bp_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/td/bp_td_final.th')
 
         print('\nTraining after_passing touchdown...')
         niters = len(ap_train) // cfg.DATA.TRAINBS + 1
@@ -221,23 +152,18 @@ if __name__ == '__main__':
                 torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/td/ap_td_{e}.th')
         torch.save(ap_td.state_dict(), f'PredNet/results/{cfg.NAME}/models/td/ap_td_final.th')
 
-        bp_td.eval()
-        ap_td.eval()
+        ap_ae.eval()
 
     # Using the trained autoencoder to train a predictor (only on no-touchdown model)
     os.makedirs(f'PredNet/results/{cfg.NAME}/models/pred', exist_ok=True)
     pred_loss = nn.MSELoss()
     if cfg.PRED == 'MLP':
-        bp_pred = PredX(cfg.MODEL.X)
         ap_pred = PredX(cfg.MODEL.X)
         ap_pred_opt = optim.Adam(ap_pred.parameters(), lr=cfg.MODEL.X.LR)
-        bp_pred_opt = optim.Adam(bp_pred.parameters(), lr=cfg.MODEL.X.LR)
         epoch = cfg.MODEL.X.EPOCH
     elif cfg.PRED == 'ATT':
-        bp_pred = PredATT(cfg.MODEL.ATT)
         ap_pred = PredATT(cfg.MODEL.ATT)
         ap_pred_opt = optim.Adam(ap_pred.parameters(), lr=cfg.MODEL.ATT.LR)
-        bp_pred_opt = optim.Adam(bp_pred.parameters(), lr=cfg.MODEL.ATT.LR)
         epoch = cfg.MODEL.ATT.EPOCH
 
     # Find continuing epoch
@@ -248,35 +174,8 @@ if __name__ == '__main__':
         if os.path.exists(sd_path):
             state_dict = torch.load(sd_path)
             ap_pred.load_state_dict(state_dict)    
-        sd_path = f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_{start_epoch}.th'
-        if os.path.exists(sd_path):
-            state_dict = torch.load(sd_path)
-            bp_pred.load_state_dict(state_dict)    
 
     ap_pred_loss = []
-    bp_pred_loss = []
-    print('\nTraining before_passing predictor...')
-    niters = len(bp_tr_notd) // cfg.DATA.TRAINBS + 1
-    for e in range(start_epoch, 0):
-        for i, (data, _, x_label, _) in enumerate(bp_tr_notd_loader):
-            if cfg.USE_AE:
-                data, _ = bp_ae(data)
-
-            logits = bp_pred(data)
-            
-            loss_val = pred_loss(logits, x_label)
-            bp_pred_loss.append(loss_val.item())
-
-            bp_pred_opt.zero_grad()
-            loss_val.backward()
-            bp_pred_opt.step()
-
-            if i % cfg.PRINT_FREQ == 0:
-                print(f'Pred epoch {e}/{epoch}, iter {i + 1}/{niters}: bp_pred_loss={loss_val}')
-            
-        if e % cfg.SAVE_FREQ == 0:
-            torch.save(bp_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_{e}.th')
-    torch.save(bp_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/bp_pred_final.th')
 
     print('\nTraining after_passing predictor...')
     niters = len(ap_tr_notd) // cfg.DATA.TRAINBS + 1
@@ -301,56 +200,20 @@ if __name__ == '__main__':
             torch.save(ap_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_{e}.th')
     torch.save(ap_pred.state_dict(), f'PredNet/results/{cfg.NAME}/models/pred/ap_pred_final.th')
 
-    bp_pred.eval()
     ap_pred.eval()
 
     loss_dict = {
         'ap_x_loss': ap_pred_loss,
-        'bp_x_loss': bp_pred_loss
     }
     if cfg.USE_AE:
         loss_dict['ap_ae_loss'] = ap_ae_loss
-        loss_dict['bp_ae_loss'] = bp_ae_loss
     if cfg.MTASK:
         loss_dict['ap_td_loss'] = ap_td_loss
-        loss_dict['bp_td_loss'] = bp_td_loss
 
     # Plot loss curves
     vis_loss_curve(cfg, loss_dict)
 
     # Testing predictor
-    nums_seen = 0
-    nums_x = 0
-    acc_loss = 0
-    td_correct = 0
-    print('\nTesting before_passing predictor...')
-    for i, (data, _, x_label, td_label) in enumerate(bp_teloader):
-        if cfg.MTASK:
-            # touchdown prediction
-            touchdown = bp_td(data)
-            touchdown = torch.argmax(touchdown, 1)
-
-            # filter no-touchdown instances for x-predictor
-            data = data[touchdown == 0]
-            x_label = x_label[touchdown == 0]
-
-            td_correct += torch.sum(touchdown == td_label.squeeze(1)).item()
-
-        if len(data.shape) > 0:
-            if cfg.USE_AE:
-                data, _ = bp_ae(data)
-            logits = bp_pred(data)
-            loss_val = pred_loss(logits, x_label)
-            acc_loss += data.shape[0] * loss_val
-            nums_x += data.shape[0]
-
-        # collect metrics
-        nums_seen += data.shape[0]
-
-    print(f'BP testing results: x_pred_MSE={acc_loss / nums_x}\n')
-    if cfg.MTASK:
-        print(f'                    touchdown_precision={td_correct / nums_seen}')
-
     nums_seen = 0
     nums_x = 0
     acc_loss = 0

@@ -7,7 +7,7 @@ class DirectionLoss(nn.Module):
         self.base = base
 
     def forward(self, dir1, dir2):
-        cos_sim = torch.cosine_similarity(dir1, dir2, dim=1)
+        cos_sim = torch.cosine_similarity(dir1, dir2, dim=2).flatten()
         base = torch.ones_like(cos_sim) * self.base
         return torch.mean(torch.pow(base, cos_sim))
 

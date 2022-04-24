@@ -5,8 +5,8 @@ MTASK: False
 PRED: 'ATT'
 
 DATA:
-  TRAINBS: 128
-  TESTBS: 128
+  TRAINBS: 64
+  TESTBS: 64
 
 MODEL:
   AE:

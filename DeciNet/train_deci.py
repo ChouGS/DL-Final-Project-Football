@@ -45,10 +45,20 @@ if __name__ == '__main__':
     off_data = ap_data[off_index]
     def_data = ap_data[def_index]
 
-    off_train = DecisionDataset(off_data[:int(round(off_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))])
-    off_test = DecisionDataset(off_data[int(round(off_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):])
-    def_train = DecisionDataset(def_data[:int(round(def_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))])
-    def_test = DecisionDataset(def_data[int(round(def_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):])
+    off_groupid = np.array([i // 11 for i in range(off_data.shape[0])], dtype=np.int32)[:, np.newaxis]
+    off_data = np.concatenate([off_data, off_groupid], 1)
+    prev_v_all = off_data[:, 71:73]
+    prev_v_off = np.reshape(prev_v_all, (-1, 11, 2))
+
+    def_groupid = np.array([i // 11 for i in range(def_data.shape[0])], dtype=np.int32)[:, np.newaxis]
+    def_data = np.concatenate([def_data, def_groupid], 1)
+    prev_v_all = def_data[:, 71:73]
+    prev_v_def = np.reshape(prev_v_all, (-1, 11, 2))
+
+    off_train = DecisionDataset(off_data[:int(round(off_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))], prev_v_off)
+    off_test = DecisionDataset(off_data[int(round(off_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):], prev_v_off)
+    def_train = DecisionDataset(def_data[:int(round(def_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))], prev_v_def)
+    def_test = DecisionDataset(def_data[int(round(def_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):], prev_v_def)
 
     off_trloader = DataLoader(off_train, batch_size=cfg.DATA.TRAINBS, shuffle=True)
     off_teloader = DataLoader(off_test, batch_size=cfg.DATA.TESTBS, shuffle=True)
@@ -85,6 +95,8 @@ if __name__ == '__main__':
     # Loss functions
     dir_loss = DirectionLoss()
     velo_loss = VeloLoss()
+    dir_loss.eval()
+    velo_loss.eval()
 
     # Begin training
     off_score_loss = []
@@ -107,7 +119,10 @@ if __name__ == '__main__':
             off_velo_loss_val = velo_loss(off_decision)
             off_velo_loss.append(off_velo_loss_val.item())
 
-            off_gat_loss_val = -off_score_loss_val + 0.001 * off_velo_loss_val
+            off_direction_loss_val = dir_loss(off_decision, v)
+            off_direction_loss.append(off_direction_loss_val.item())
+
+            off_gat_loss_val = -10 * off_score_loss_val + 2 * off_direction_loss_val + off_velo_loss_val
             off_gat_loss.append(off_gat_loss_val.item())
 
             off_optim.zero_grad()
@@ -118,6 +133,7 @@ if __name__ == '__main__':
                 print(f'Offensive epoch {e}/{epoch}, iter {i + 1}/{niters}: \n', 
                       f'   total loss={round(off_gat_loss_val.item(), 3)}',
                       f'   score loss={round(off_score_loss_val.item(), 3)}',
+                      f'   direction loss={round(off_direction_loss_val.item(), 3)}',
                       f'   velo loss={round(off_velo_loss_val.item(), 3)}\n')
                 
         if e % cfg.SAVE_FREQ == 0:
@@ -170,7 +186,10 @@ if __name__ == '__main__':
             def_velo_loss_val = velo_loss(def_decision)
             def_velo_loss.append(def_velo_loss_val.item())
 
-            def_gat_loss_val = def_score_loss_val + 0.001 * def_velo_loss_val
+            def_direction_loss_val = dir_loss(def_decision, v)
+            def_direction_loss.append(def_direction_loss_val.item())
+
+            def_gat_loss_val = 10 * def_score_loss_val + 2 * def_direction_loss_val + def_velo_loss_val
             def_gat_loss.append(def_gat_loss_val.item())
 
             def_optim.zero_grad()
@@ -181,6 +200,7 @@ if __name__ == '__main__':
                 print(f'Defensive epoch {e}/{epoch}, iter {i + 1}/{niters}: \n', 
                       f'   total loss={round(def_gat_loss_val.item(), 3)}',
                       f'   score loss={round(def_score_loss_val.item(), 3)}',
+                      f'   direction loss={round(def_direction_loss_val.item(), 3)}',
                       f'   velo loss={round(def_velo_loss_val.item(), 3)}\n')
                 
         if e % cfg.SAVE_FREQ == 0:
@@ -190,8 +210,10 @@ if __name__ == '__main__':
     loss_dict = {
         'off_score_loss': off_score_loss,
         'off_velo_loss': off_velo_loss,
+        'off_direction_loss': off_direction_loss,
         'off_gat_loss': off_gat_loss,
         'def_score_loss': def_score_loss,
+        'def_direction_loss': def_direction_loss,
         'def_velo_loss': def_velo_loss,
         'def_gat_loss': def_gat_loss
     }
@@ -215,13 +237,16 @@ if __name__ == '__main__':
         off_data = make_def_data(data, off_decision)
 
         # score loss
-        off_score_loss_val = torch.mean(ap_pred(off_data))
+        off_score_loss_val = torch.sum(ap_pred(off_data))
         acc_score_loss += off_score_loss_val.item()
 
         off_velo_loss_val = velo_loss(off_decision)
         acc_velo_loss += off_velo_loss_val.item()
 
-        off_gat_loss_val = -off_score_loss_val + 0.001 * off_velo_loss_val
+        off_direction_loss_val = dir_loss(off_decision, v)
+        off_direction_loss += off_direction_loss_val.item()
+
+        off_gat_loss_val = -10 * off_score_loss_val + 2 * off_direction_loss_val + off_velo_loss_val
         acc_gat_loss += off_gat_loss_val.item()
 
         nums_seen += off_data.shape[0]
@@ -243,13 +268,16 @@ if __name__ == '__main__':
         def_data = make_def_data(data, def_decision)
 
         # score loss
-        def_score_loss_val = torch.mean(ap_pred(def_data))
+        def_score_loss_val = torch.sum(ap_pred(def_data))
         acc_score_loss += def_score_loss_val.item()
 
         def_velo_loss_val = velo_loss(def_decision)
         acc_velo_loss += def_velo_loss_val.item()
+        
+        def_direction_loss_val = dir_loss(def_decision, v)
+        def_direction_loss += def_direction_loss_val.item()
 
-        def_gat_loss_val = -def_score_loss_val + 0.001 * def_velo_loss_val
+        def_gat_loss_val = -10 * def_score_loss_val + 2 * def_direction_loss_val + def_velo_loss_val
         acc_gat_loss += def_gat_loss_val.item()
 
         nums_seen += def_data.shape[0]
