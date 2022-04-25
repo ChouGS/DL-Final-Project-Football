@@ -84,65 +84,53 @@ class PredATT(nn.Module):
         super(PredATT, self).__init__()
         latent_dim = cfg.QKV_STRUCTURE
         latent_dim = [6] + latent_dim
-        outp_dim = [latent_dim[-1] * 2] + cfg.OUTP_CHN
-
-        # QKV block
-        if cfg.USE_BN:
-            q_structure = []
-            k_structure = []
-            v_structure = []
-            for i in range(1, len(latent_dim)):
-                q_structure += [(f'q_bn{i}', nn.BatchNorm1d(23)),
-                                (f'q_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
-                                (f'q_relu_{i}', nn.LeakyReLU(0.2))]
-                k_structure += [(f'k_bn{i}', nn.BatchNorm1d(23)),
-                                (f'k_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
-                                (f'k_relu_{i}', nn.LeakyReLU(0.2))]
-                v_structure += [(f'v_bn{i}', nn.BatchNorm1d(23)),
-                                (f'v_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
-                                (f'v_relu_{i}', nn.LeakyReLU(0.2))]
-            self.q = nn.Sequential(OrderedDict(q_structure))
-            self.k = nn.Sequential(OrderedDict(k_structure))
-            self.v = nn.Sequential(OrderedDict(v_structure))
-        else:
-            q_structure = []
-            k_structure = []
-            v_structure = []
-            for i in range(1, len(latent_dim)):
-                q_structure += [(f'q_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
-                                (f'q_relu_{i}', nn.LeakyReLU(0.2))]
-                k_structure += [(f'k_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
-                                (f'k_relu_{i}', nn.LeakyReLU(0.2))]
-                v_structure += [(f'v_{i}', nn.Linear(latent_dim[i-1], latent_dim[i])),
-                                (f'v_relu_{i}', nn.LeakyReLU(0.2))]
-            self.q = nn.Sequential(OrderedDict(q_structure))
-            self.k = nn.Sequential(OrderedDict(k_structure))
-            self.v = nn.Sequential(OrderedDict(v_structure))
+        outp_dim = [latent_dim[-1]] + cfg.OUTP_CHN
 
         # Attention block
+        q_structure = []
+        k_structure = []
+        v_structure = []
+        for i in range(1, len(latent_dim)):
+            if cfg.USE_BN:
+                q_structure += [(f'q_bn{i}', nn.BatchNorm1d(latent_dim[i-1]))]
+                k_structure += [(f'k_bn{i}', nn.BatchNorm1d(latent_dim[i-1]))]
+                v_structure += [(f'v_bn{i}', nn.BatchNorm1d(latent_dim[i-1]))]
+            q_structure += [(f'q_{i}', nn.Conv1d(latent_dim[i-1], latent_dim[i], 1)),
+                            (f'q_relu_{i}', nn.LeakyReLU(0.2))]
+            k_structure += [(f'k_{i}', nn.Conv1d(latent_dim[i-1], latent_dim[i], 1)),
+                            (f'k_relu_{i}', nn.LeakyReLU(0.2))]
+            v_structure += [(f'v_{i}', nn.Conv1d(latent_dim[i-1], latent_dim[i], 1)),
+                            (f'v_relu_{i}', nn.LeakyReLU(0.2))]
+        self.q = nn.Sequential(OrderedDict(q_structure))
+        self.k = nn.Sequential(OrderedDict(k_structure))
+        self.v = nn.Sequential(OrderedDict(v_structure))
+
         self.attention = nn.MultiheadAttention(latent_dim[-1], num_heads=cfg.NHEAD)
+        self.aggregation = nn.MaxPool1d((23))
 
         # Output block
-        outp_structure = [(f'outp{i}', nn.Conv1d(outp_dim[i-1], outp_dim[i], 1)) for i in range(1, len(outp_dim))]
-        outp_structure.append(('flatten', nn.Flatten(1, -1)))
-        outp_structure.append(('fc_final', nn.Linear(23, 1)))
+        outp_structure = []
+        for i in range(1, len(outp_dim)):
+            if cfg.USE_BN:
+                outp_structure += [(f'outp_bn_{i}', nn.BatchNorm1d(outp_dim[i-1]))]
+            outp_structure.append((f'outp{i}', nn.Conv1d(outp_dim[i-1], outp_dim[i], 1)))
         self.outp = nn.Sequential(OrderedDict(outp_structure))
 
     def forward(self, x):
+        x = x.transpose(1, 2)
         # q, k, v as in the attention layer
-        q = self.q(x)
-        k = self.k(x)
-        v = self.v(x)
+        q = self.q(x).permute(2, 0, 1)
+        k = self.k(x).permute(2, 0, 1)
+        v = self.v(x).permute(2, 0, 1)
         
         # Multi-head attention
         att, _ = self.attention(q, k, v)
+        att = att.permute(1, 2, 0)
 
         # Average and concatenation
-        aggr_att, _ = torch.max(att, 1, keepdim=True)
-        aggr_att = torch.Tensor.repeat(aggr_att, (1, att.shape[1], 1))
-        att = torch.cat([att, aggr_att], -1).transpose(1, 2)
+        aggr_att = self.aggregation(att)
 
         # 1x1 conv and average again
-        outp = self.outp(att)
+        outp = self.outp(aggr_att).squeeze(1)
 
         return outp

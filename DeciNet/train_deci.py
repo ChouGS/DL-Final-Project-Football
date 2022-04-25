@@ -8,8 +8,8 @@ import re
 import shutil
 import argparse
 
-from pred_model import OffenseGAT, DefenseGAT
-from tools import find_last_epoch, make_off_data, make_def_data
+from pred_model import PredGAT
+from tools import find_last_epoch, make_pred_data, make_gat_data
 from loss import DirectionLoss, VeloLoss
 from pred_model import PredX, PredATT
 from dataset import DecisionDataset
@@ -45,20 +45,20 @@ if __name__ == '__main__':
     off_data = ap_data[off_index]
     def_data = ap_data[def_index]
 
-    off_groupid = np.array([i // 11 for i in range(off_data.shape[0])], dtype=np.int32)[:, np.newaxis]
-    off_data = np.concatenate([off_data, off_groupid], 1)
-    prev_v_all = off_data[:, 71:73]
-    prev_v_off = np.reshape(prev_v_all, (-1, 11, 2))
+    # off_groupid = np.array([i // 11 for i in range(off_data.shape[0])], dtype=np.int32)[:, np.newaxis]
+    # off_data = np.concatenate([off_data, off_groupid], 1)
+    # prev_v_all = off_data[:, 71:73]
+    # prev_v_off = np.reshape(prev_v_all, (-1, 11, 2))
 
-    def_groupid = np.array([i // 11 for i in range(def_data.shape[0])], dtype=np.int32)[:, np.newaxis]
-    def_data = np.concatenate([def_data, def_groupid], 1)
-    prev_v_all = def_data[:, 71:73]
-    prev_v_def = np.reshape(prev_v_all, (-1, 11, 2))
+    # def_groupid = np.array([i // 11 for i in range(def_data.shape[0])], dtype=np.int32)[:, np.newaxis]
+    # def_data = np.concatenate([def_data, def_groupid], 1)
+    # prev_v_all = def_data[:, 71:73]
+    # prev_v_def = np.reshape(prev_v_all, (-1, 11, 2))
 
-    off_train = DecisionDataset(off_data[:int(round(off_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))], prev_v_off)
-    off_test = DecisionDataset(off_data[int(round(off_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):], prev_v_off)
-    def_train = DecisionDataset(def_data[:int(round(def_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))], prev_v_def)
-    def_test = DecisionDataset(def_data[int(round(def_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):], prev_v_def)
+    off_train = DecisionDataset(off_data[:int(round(off_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))])
+    off_test = DecisionDataset(off_data[int(round(off_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):])
+    def_train = DecisionDataset(def_data[:int(round(def_data.shape[0] * (1 - cfg.DATA.TESTRATIO)))])
+    def_test = DecisionDataset(def_data[int(round(def_data.shape[0] * (1 - cfg.DATA.TESTRATIO))):])
 
     off_trloader = DataLoader(off_train, batch_size=cfg.DATA.TRAINBS, shuffle=True)
     off_teloader = DataLoader(off_test, batch_size=cfg.DATA.TESTBS, shuffle=True)
@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
     ### Train offensive GAT model
     # Define GAT model
-    off_gat = OffenseGAT(cfg.MODEL.GAT)
+    off_gat = PredGAT(cfg.MODEL.GAT)
 
     # Create save_dir
     os.makedirs(f'DeciNet/results/{cfg.NAME}/models/off_gat', exist_ok=True)
@@ -111,10 +111,9 @@ if __name__ == '__main__':
     for e in range(start_epoch, epoch):
         for i, (data, pos, v) in enumerate(off_trloader):
             # GAT forward
-            off_decision = off_gat(data)
-            import pdb
-            pdb.set_trace()
-            off_data = make_off_data(data, off_decision)
+            gat_data = make_gat_data(data, pos, v)
+            off_decision = off_gat(gat_data)
+            off_data = make_pred_data(data, pos, off_decision)
 
             # score loss
             off_score_loss_val = torch.mean(ap_pred(off_data))
@@ -142,13 +141,13 @@ if __name__ == '__main__':
                 
         if e % cfg.SAVE_FREQ == 0:
             torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_{e}.th')
-    torch.save(off_gat, f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_final.th')
+    torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_final.th')
     
     
     
     ### Train defensive GAT model
     # Define GAT model
-    def_gat = DefenseGAT(cfg.MODEL.GAT)
+    def_gat = PredGAT(cfg.MODEL.GAT)
 
     # Create save_dir
     os.makedirs(f'DeciNet/results/{cfg.NAME}/models/def_gat', exist_ok=True)
@@ -182,8 +181,9 @@ if __name__ == '__main__':
     for e in range(start_epoch, epoch):
         for i, (data, pos, v) in enumerate(def_trloader):
             # GAT forward
-            def_decision = def_gat(data)
-            def_data = make_def_data(data, def_decision)
+            gat_data = make_gat_data(data, pos, v)
+            def_decision = def_gat(gat_data)
+            def_data = make_pred_data(data, pos, def_decision)
 
             # score loss
             def_score_loss_val = torch.mean(ap_pred(def_data))
@@ -211,7 +211,7 @@ if __name__ == '__main__':
                 
         if e % cfg.SAVE_FREQ == 0:
             torch.save(def_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_{e}.th')
-    torch.save(def_gat, f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_final.th')
+    torch.save(def_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_final.th')
 
     loss_dict = {
         'off_score_loss': off_score_loss,
@@ -240,8 +240,9 @@ if __name__ == '__main__':
     print('\nTesting offensive decisionmaker...')
     for i, (data, pos, v) in enumerate(off_teloader):
         # GAT forward
-        off_decision = def_gat(data)
-        off_data = make_def_data(data, off_decision)
+        gat_data = make_gat_data(data, pos, v)
+        off_decision = def_gat(gat_data)
+        off_data = make_pred_data(data, pos, off_decision)
 
         # score loss
         off_score_loss_val = torch.sum(ap_pred(off_data))
@@ -272,8 +273,9 @@ if __name__ == '__main__':
     print('\nTesting defensive decisionmaker...')
     for i, (data, pos, v) in enumerate(def_teloader):
         # GAT forward
-        def_decision = def_gat(data)
-        def_data = make_def_data(data, def_decision)
+        gat_data = make_gat_data(data, pos, v)
+        def_decision = def_gat(gat_data)
+        def_data = make_pred_data(data, pos, def_decision)
 
         # score loss
         def_score_loss_val = torch.sum(ap_pred(def_data))

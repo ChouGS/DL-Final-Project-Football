@@ -3,16 +3,21 @@ DATA_DIR: 'raw_data/11oLpHcL/synthesized'
 PRED: 'ATT'
 PRETRAIN_DIR: 'DeciNet/pretrained/ap_pred.th'
 
+W_SCORE: 1.
+W_DIRE: 0.2
+W_VELO: 0.01
+
 DATA:
-  TRAINBS: 16
-  TESTBS: 16
+  TRAINBS: 64
+  TESTBS: 64
 
 MODEL:
   GAT:
-    LR: 0.01
+    LR: 0.002
     EPOCH: 20
     AGG:
       NHEAD: 4
+      POOLING: 'Avg'
   ATT:
     LR: 0.001
     EPOCH: 10

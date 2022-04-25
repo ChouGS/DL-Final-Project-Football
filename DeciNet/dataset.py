@@ -4,11 +4,10 @@ import numpy as np
 
 
 class DecisionDataset(Dataset):
-    def __init__(self, data, prev_v, nplayer=11) -> None:
+    def __init__(self, data,nplayer=11) -> None:
         super(DecisionDataset, self).__init__()
         self.data = torch.Tensor(data)
         self.nplayer = nplayer
-        self.prev_v = torch.Tensor(prev_v)
 
     def __getitem__(self, index):
         att_feature = self.data[index, :69].reshape(23, 3)[:, :2]
@@ -22,7 +21,7 @@ class DecisionDataset(Dataset):
         # 77: final x label
         # 78: score label
         # 79: touchdown or not
-        return att_feature, self.data[index, 69:71], self.prev_v[self.data[index, -1].long()]
+        return att_feature, self.data[index, 69:71], self.data[index, 71:73]
 
     def __len__(self):
         return self.data.shape[0]

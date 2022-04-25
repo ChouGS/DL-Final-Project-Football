@@ -1,4 +1,4 @@
-NAME: 'small_attention'
+NAME: 'mod_attention_max'
 DATA_DIR: 'raw_data/11oLpHcL/synthesized'
 USE_AE: False
 MTASK: False

@@ -1,4 +1,5 @@
 import numpy as np
+from torch import Tensor
 import random
 
 from algorithms.trajectory import GenerateTrajectory
@@ -74,6 +75,9 @@ class Player(Agent):
         # Can be a 2*self.n_traj numpy.array or some better structures
         self.trajectory = None
 
+        # Last position, used for calculating previous velocity
+        self.lastpos = None
+
     def mod_holding_state(self, holding, ball=None):
         '''
             holding: bool, incoming holding status
@@ -92,7 +96,7 @@ class Player(Agent):
         else:
             self.ball = None
         
-    def trajgen(self, player_list, mode, control_pattern, solver):
+    def trajgen(self, player_list, mode, control_pattern, ball_pos, solver=None):
         '''       
             player_list: list of Player instances, the information of all players
             mode: choose{'1v1', 'mv1'}, the stage of the game
@@ -159,19 +163,14 @@ class Player(Agent):
                     if min_distance < Player.distance_lb else self.speed
         acceleration = self.speed / 3 if mode == '1v1' or self.isoffender else self.speed / 2
 
-        # CGT logics
-        if self.n_traj > 1:
-            try:
-                assert solver is not None
-            except AssertionError:
-                raise ValueError('Must provide a solver if DL method is used')
-                
-            # Generate virtual destinations
-            r = 700                     # distance of the dests
-            G = np.zeros((self.n_traj, 2))        # coordinate of the dests
+        # Generate virtual destinations
+        r = 700                     # distance of the dests
+        G = np.zeros((self.n_traj, 2))        # coordinate of the dests
 
-            # Offenders have more candidates pointing rightward
-            if self.isoffender:
+        # Offenders have more candidates pointing rightward
+        if self.isoffender:
+            if solver is None or mode == '1v1':
+                # CGT logics
                 for i in range(-4, 5):     
                     G[(i + self.n_traj) % self.n_traj, 0] = r * np.cos(i * 2 * np.pi / 16) + self.x
                     G[(i + self.n_traj) % self.n_traj, 1] = r * np.sin(i * 2 * np.pi / 16) + self.y
@@ -179,13 +178,29 @@ class Player(Agent):
                     G[i, 0] = r * np.cos((i * 2 - 4) * 2 * np.pi / 16) + self.x
                     G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
             else:
-                # Defenders in 1v1 have trajectories evenly distributed
-                if mode == '1v1':
-                    for i in range(self.n_traj):
-                        G[i, 0] = r * np.cos(i * 2 * np.pi / self.n_traj) + self.x
-                        G[i, 1] = r * np.sin(i * 2 * np.pi / self.n_traj) + self.y
-                # Defenders in mv1 have their trajectories pointing ahead of the ball holder
-                else:                
+                # DL logics
+                data = np.array([[player_list[i].x, player_list[i].y] for i in range(len(player_list))])
+                data = np.concatenate([data, ball_pos], 0)
+                position = np.array([self.x, self.y])[np.newaxis, :]
+                position = np.repeat(position, len(player_list) + 1, 0)
+                prev_v = self.get_prev_v()[np.newaxis, :]
+                prev_v = np.repeat(prev_v, len(player_list) + 1, 0)
+                max_v = np.ones((len(player_list) + 1, 1))
+                data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])                    
+                decision = solver.decision(data)
+                v_scale = np.linalg.norm(decision, 2)
+                G[:, 0] = decision[0, 0] / v_scale * r
+                G[:, 1] = decision[0, 1] / v_scale * r
+        else:
+            # Defenders in 1v1 have trajectories evenly distributed
+            if mode == '1v1':
+                for i in range(self.n_traj):
+                    G[i, 0] = r * np.cos(i * 2 * np.pi / self.n_traj) + self.x
+                    G[i, 1] = r * np.sin(i * 2 * np.pi / self.n_traj) + self.y
+            # Defenders in mv1 have their trajectories pointing ahead of the ball holder
+            else:
+                if solver is None:
+                    # Generate candidate 
                     try:
                         # Calculate the distance to the ball holder
                         for j in range(len(player_list)):
@@ -217,33 +232,35 @@ class Player(Agent):
                         for i in range(self.n_traj):
                             G[i, 0] = r * np.cos(i * 2 * np.pi / self.n_traj) + self.x
                             G[i, 1] = r * np.sin(i * 2 * np.pi / self.n_traj) + self.y
-
-            # Time interval
-            dt = 0.1
-
-            # Current motion state
-            z_a = np.array([self.x, self.y, 0, 0])
-
-            # Calculate trajectory candidates
-            ZZ_a = np.zeros((self.n_traj, 4, Player.pred_len))
-            for n in range(self.n_traj):
-                g = G[n, :]
-                if self.isoffender:
-                    ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
-                                                       (-10, 510), (-20, 420), v_bound)  # Hard code
                 else:
-                    ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
-                                                       (-30, 530), (-50, 450), v_bound)  # Hard code
-        else:
-            # Calculate trajectory candidates
-            ZZ_a = np.zeros((1, 4, Player.pred_len))
-            
+                    data = np.array([[player_list[i].x, player_list[i].y] for i in range(len(player_list))])
+                    data = np.concatenate([data, ball_pos], 0)
+                    position = np.array([self.x, self.y])[np.newaxis, :]
+                    position = np.repeat(position, len(player_list) + 1, 0)
+                    prev_v = self.get_prev_v()[np.newaxis, :]
+                    prev_v = np.repeat(prev_v, len(player_list) + 1, 0)
+                    max_v = np.ones((len(player_list) + 1, 1))
+                    data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])                    
+                    decision = solver.decision(data)
+                    v_scale = np.linalg.norm(decision, 2)
+                    G[:, 0] = decision[0, 0] / v_scale * r
+                    G[:, 1] = decision[0, 1] / v_scale * r
+
+        # Time interval
+        dt = 0.1
+
+        # Current motion state
+        z_a = np.array([self.x, self.y, 0, 0])
+
+        # Calculate trajectory candidates
+        ZZ_a = np.zeros((self.n_traj, 4, Player.pred_len))
+        for n in range(self.n_traj):
             g = G[n, :]
             if self.isoffender:
-                ZZ_a[0, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
+                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
                                                     (-10, 510), (-20, 420), v_bound)  # Hard code
             else:
-                ZZ_a[0, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
+                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
                                                     (-30, 530), (-50, 450), v_bound)  # Hard code
 
         return ZZ_a
@@ -260,6 +277,7 @@ class Player(Agent):
 
         # Dequeue the first upcoming position in trajectory and modify current position
         if self.trajectory is not None:
+            self.lastpos = np.array([self.x, self.y])
             self.x = self.trajectory[0, 0]
             self.y = self.trajectory[1, 0]
             # Ball moves with the player if it's held
@@ -269,6 +287,11 @@ class Player(Agent):
             self.trajectory = self.trajectory[:, 1:]
             if self.trajectory.shape[1] == 0:
                 self.trajectory = None
+
+    def get_prev_v(self, ratio=20):
+        if self.lastpos is not None:
+            return (np.array([self.x, self.y]) - self.lastpos) * ratio
+        return np.array([5, 0]) if self.isoffender else np.array([-5, 0])
 
     def magic_func(self, x):
         '''

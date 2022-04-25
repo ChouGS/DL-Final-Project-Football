@@ -10,6 +10,8 @@ from algorithms.eval import EvaluateTrajectories, ChooseAction, EvaluateTrajecto
 from algorithms.LCPs import LCP_lemke_howson
 from algorithms.DL_solver import DLsolver
 
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 # Initialize game and timer
 parser = argparse.ArgumentParser()
 parser.add_argument("-ns", "--num_sims", help="[Optional] number of game simulations, 1 by default.", \
@@ -32,17 +34,17 @@ parser.add_argument("-opath", "--offensive_agent_path", help="[Optional] DL mode
                     type=str, default='algorithms/DL_model/off_gat_final.th')
 parser.add_argument("-dpath", "--defensive_agent_path", help="[Optional] DL model path for defenders.", \
                     type=str, default='algorithms/DL_model/def_gat_final.th')
-parser.add_argument("-l", "--log", help="Whether to write out log files", default=False)
-parser.add_argument("-v", "--video", help="Whether to write out videos", default=False)
-parser.add_argument("-d", "--gen_data", help="Whether to generate labeled data", default=True)
+parser.add_argument("-cpath", "--config_path", help="[Optional] Configuration path for initializing DL model.", \
+                    type=str, default='algorithms/DL_model/config/gat_small_att.yaml')
+parser.add_argument("-l", "--log", help="Whether to write out log files", default=True)
+parser.add_argument("-v", "--video", help="Whether to write out videos", default=True)
+parser.add_argument("-d", "--gen_data", help="Whether to generate labeled data", default=False)
 args = parser.parse_args()
 
 # Hyper-parameters
 num_players = args.num_players              # Number of players on each team
 num_sims = args.num_sims                    # The number of simulations (separate games) to be simulated
 N = args.num_traj_cand                      # The number of candidate trajectories for each player
-N_off = args.num_traj_cand if args.offensive_agent == 'CGT' else 1      # The number of candidate trajectories for offensive player
-N_def = args.num_traj_cand if args.offensive_agent == 'CGT' else 1      # The number of candidate trajectories for defensive player
 offender_pattern = args.offender_pattern    # The OP settings
 passing_pattern = args.passing_pattern      # The PP settings
 control_pattern = args.control_pattern      # The CP settings
@@ -58,10 +60,10 @@ if logging:
 # Initialize DL model if DL method is used
 off_solver = None
 def_solver = None
-if args.oa == 'DL':
-    off_solver = DLsolver(args.offensive_agent_path)
-if args.da == 'DL':
-    def_solver = DLsolver(args.defensive_agent_path)
+if args.offensive_agent == 'DL':
+    off_solver = DLsolver(args.offensive_agent_path, args.config_path)
+if args.defensive_agent == 'DL':
+    def_solver = DLsolver(args.defensive_agent_path, args.config_path)
 
 # Data collector
 data_root = f'raw_data/{num_players}{display_prefix}'
@@ -86,7 +88,7 @@ for iter in range(num_sims):
     can_pass = True
 
     # Create gameyard
-    game = Gameyard(game_id=iter+1, prefix=display_prefix, video=video, players=num_players)
+    game = Gameyard(game_id=iter+1, prefix=display_prefix, n_traj=N, video=video, players=num_players)
     game.players[0].mod_holding_state(True, game.ball)
     game.ball.mod_status('held')
 
@@ -98,19 +100,18 @@ for iter in range(num_sims):
 
             # Generate trajectory proposals
             traj_list = []
+            ball_pos = np.array([[game.ball.x, game.ball.y]])
             for player in game.players:
                 if player.isoffender:
-                    traj_list.append(player.trajgen(game.players, mode, control_pattern, off_solver))
+                    traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, off_solver))
                 else:
-                    traj_list.append(player.trajgen(game.players, mode, control_pattern, def_solver))
+                    traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, def_solver))
 
             # Decide a trajectory for each player as a Nash equilibrium
 
             # A: nplayer * nplayer * N * N, cost matrix between every pair of players
             # N = 1 if DL strategy is used, N = args.num_traj_cand if CGT is used
             A = np.zeros((2*num_players, 2*num_players, N, N))
-            A_od = np.zeros((num_players, num_players, N_off, N_def))
-            A_od = np.zeros((num_players, num_players, N_def, N_off))
             
             # Calculate cost matrix
             for p in range(2*num_players):

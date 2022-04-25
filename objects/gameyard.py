@@ -10,7 +10,7 @@ class Gameyard:
     defensive_line_x = 400      # The x coordinate of the touchdown line
     start_line_x = 200          # The x coordinate of the scrimmage
 
-    def __init__(self, game_id, prefix, oa, da, n_traj, video=False, players=1):
+    def __init__(self, game_id, prefix, n_traj, video=False, players=1):
         '''
             game_id: int, game ID
             prefix: str, output file name prefix
@@ -42,35 +42,35 @@ class Gameyard:
         self.id = game_id
 
         # Create offenders
-        self.players = [Player(125, 200, 0, 'QB', 1 if oa == 'DL' else n_traj)]
+        self.players = [Player(125, 200, 0, 'QB', n_traj)]
         for i in range(role_dict['WR'][players]):
             if i == 0:
-                self.players.append(Player(175, 325, len(self.players), 'WR', 1 if oa == 'DL' else n_traj))
+                self.players.append(Player(175, 325, len(self.players), 'WR', n_traj))
             if i == 1:
-                self.players.append(Player(175, 75, len(self.players), 'WR', 1 if oa == 'DL' else n_traj))
+                self.players.append(Player(175, 75, len(self.players), 'WR', n_traj))
         player_y = np.linspace(150, 250, role_dict['Tackle_O'][players])
         for i in range(role_dict['Tackle_O'][players]):
-            self.players.append(Player(180, player_y[i], len(self.players), 'Tackle_O', 1 if oa == 'DL' else n_traj))
+            self.players.append(Player(180, player_y[i], len(self.players), 'Tackle_O', n_traj))
 
         # Create defenders
         for i in range(role_dict['CB'][players]):
             if i == 0:
-                self.players.append(Player(225, 325, len(self.players), 'CB', 1 if da == 'DL' else n_traj))
+                self.players.append(Player(225, 325, len(self.players), 'CB', n_traj))
             if i == 1:
-                self.players.append(Player(225, 75, len(self.players), 'CB', 1 if da == 'DL' else n_traj))
+                self.players.append(Player(225, 75, len(self.players), 'CB', n_traj))
 
         player_y = np.linspace(150, 250, role_dict['Tackle_D'][players])
         for i in range(role_dict['Tackle_D'][players]):
-            self.players.append(Player(220, player_y[i], len(self.players), 'Tackle_D', 1 if da == 'DL' else n_traj))
+            self.players.append(Player(220, player_y[i], len(self.players), 'Tackle_D', n_traj))
 
         for i in range(role_dict['Safety'][players]):
             if i == 0:
                 if role_dict['Safety'][players] == 1:
-                    self.players.append(Player(300, 200, len(self.players), 'Safety', 1 if da == 'DL' else n_traj))
+                    self.players.append(Player(300, 200, len(self.players), 'Safety', n_traj))
                 else:
-                    self.players.append(Player(300, 225, len(self.players), 'Safety', 1 if da == 'DL' else n_traj))
+                    self.players.append(Player(300, 225, len(self.players), 'Safety', n_traj))
             if i == 1:
-                self.players.append(Player(300, 175, len(self.players), 'Safety', 1 if da == 'DL' else n_traj))
+                self.players.append(Player(300, 175, len(self.players), 'Safety', n_traj))
 
         # Create the ball
         self.ball = Ball(-1, -1)
