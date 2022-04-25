@@ -12,3 +12,4 @@
 *.yaml
 !PredNet/config/attention.yaml
 !DeciNet/config/gat_basic.yaml
+!PredNet/config/small_attention.yaml

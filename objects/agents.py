@@ -2,6 +2,7 @@ import numpy as np
 import random
 
 from algorithms.trajectory import GenerateTrajectory
+from algorithms.trajectory import GenerateTrajectory
 from algorithms.eval import LoseBallProb
 
 class Agent:
@@ -22,12 +23,13 @@ class Agent:
 class Player(Agent):
     distance_lb = 10    # Safety distance as in the paper
     pred_len = 10       # Length of generated trajectories
-    def __init__(self, x, y, id, role):
+    def __init__(self, x, y, id, role, n_traj):
         '''
             x: real, x coordinate of the player
             y: real, y coordinate of the player
             id: int, id of the player
             role: choose{'QB', 'WR', 'Tackle_O', 'Safety', 'Tackle_D', 'CB'}, the position of the player
+
             ----------------------------------------------------------
             Initialization of players.
         '''
@@ -65,8 +67,11 @@ class Player(Agent):
         # Whether this player needs to stand still to receive a pass
         self.standby = False
 
+        # Record number of candidate trajectories of this player
+        self.n_traj = n_traj
+
         # The upcoming trajectory of the player
-        # Can be a 2*N numpy.array or some better structures
+        # Can be a 2*self.n_traj numpy.array or some better structures
         self.trajectory = None
 
     def mod_holding_state(self, holding, ball=None):
@@ -82,23 +87,24 @@ class Player(Agent):
         self.color = [0x2a, 0x2a, 0xa5] if self.holding else [0x00, 0x99, 0xff]
         if self.holding:
             self.ball = ball
+            self.ball.x = self.x
+            self.ball.y = self.y
         else:
             self.ball = None
         
-    def trajgen(self, player_list, N, mode, control_pattern):
+    def trajgen(self, player_list, mode, control_pattern, solver):
         '''       
             player_list: list of Player instances, the information of all players
-            N: int, the number of preset destinations used
             mode: choose{'1v1', 'mv1'}, the stage of the game
             control_pattern: choose{'H', 'L'}, the hyper-parameter CP
             -----------------------------------------------------------------------
-            Generate all N candidate trajectories for this player.
+            Generate all candidate trajectories for this player.
             Details of trajectories are affected by mode, CP, and opponents in the way
         '''
 
         # If the player is waiting for a pass, stand still
         if self.standby:
-            return np.repeat(self.trajectory.reshape(1, 4, -1), N, axis=0)
+            return np.repeat(self.trajectory.reshape(1, 4, -1), self.n_traj, axis=0)
 
         # Decide acceleration penalty according to the position of the nearest opponent and game mode
         min_distance = 1e8
@@ -153,74 +159,92 @@ class Player(Agent):
                     if min_distance < Player.distance_lb else self.speed
         acceleration = self.speed / 3 if mode == '1v1' or self.isoffender else self.speed / 2
 
-        # Generate virtual destinations
-        r = 700                     # distance of the dests
-        G = np.zeros((N, 2))        # coordinate of the dests
+        # CGT logics
+        if self.n_traj > 1:
+            try:
+                assert solver is not None
+            except AssertionError:
+                raise ValueError('Must provide a solver if DL method is used')
+                
+            # Generate virtual destinations
+            r = 700                     # distance of the dests
+            G = np.zeros((self.n_traj, 2))        # coordinate of the dests
 
-        # Offenders have more candidates pointing rightward
-        if self.isoffender:
-            for i in range(-4, 5):     
-                G[(i + N) % N, 0] = r * np.cos(i * 2 * np.pi / 16) + self.x
-                G[(i + N) % N, 1] = r * np.sin(i * 2 * np.pi / 16) + self.y
-            for i in range(5, 8):
-                G[i, 0] = r * np.cos((i * 2 - 4) * 2 * np.pi / 16) + self.x
-                G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
+            # Offenders have more candidates pointing rightward
+            if self.isoffender:
+                for i in range(-4, 5):     
+                    G[(i + self.n_traj) % self.n_traj, 0] = r * np.cos(i * 2 * np.pi / 16) + self.x
+                    G[(i + self.n_traj) % self.n_traj, 1] = r * np.sin(i * 2 * np.pi / 16) + self.y
+                for i in range(5, 8):
+                    G[i, 0] = r * np.cos((i * 2 - 4) * 2 * np.pi / 16) + self.x
+                    G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
+            else:
+                # Defenders in 1v1 have trajectories evenly distributed
+                if mode == '1v1':
+                    for i in range(self.n_traj):
+                        G[i, 0] = r * np.cos(i * 2 * np.pi / self.n_traj) + self.x
+                        G[i, 1] = r * np.sin(i * 2 * np.pi / self.n_traj) + self.y
+                # Defenders in mv1 have their trajectories pointing ahead of the ball holder
+                else:                
+                    try:
+                        # Calculate the distance to the ball holder
+                        for j in range(len(player_list)):
+                            if player_list[j].holding:
+                                nbclass = j
+                        dist_nbclass = ((player_list[nbclass].x - self.x) ** 2 + (player_list[nbclass].y - self.y) ** 2) ** 0.5
+                        
+                        # Distance higher than 100: go more ahead of the ball holder
+                        if dist_nbclass > 100:
+                            for i in range(self.n_traj):
+                                G[i, 0] = player_list[nbclass].x + 20 + i * 10
+                                
+                                if player_list[nbclass].y - self.y >= 0:
+                                    G[i, 1] = player_list[nbclass].y + 100 
+                                else:
+                                    G[i, 1] = player_list[nbclass].y - 100 
+
+                        # Distance lower than 100: go a little bit ahead of the ball holder
+                        else:
+                            for i in range(self.n_traj):
+                                G[i, 0] = player_list[nbclass].x + 20 + (i * 5) * dist_nbclass / 100
+                                if player_list[nbclass].y - self.y >= 0:
+                                    G[i, 1] = player_list[nbclass].y + 100
+                                else:
+                                    G[i, 1] = player_list[nbclass].y - 100
+
+                    except:
+                        # If the ball is midair (no ball holder), act the same as in 1v1 mode
+                        for i in range(self.n_traj):
+                            G[i, 0] = r * np.cos(i * 2 * np.pi / self.n_traj) + self.x
+                            G[i, 1] = r * np.sin(i * 2 * np.pi / self.n_traj) + self.y
+
+            # Time interval
+            dt = 0.1
+
+            # Current motion state
+            z_a = np.array([self.x, self.y, 0, 0])
+
+            # Calculate trajectory candidates
+            ZZ_a = np.zeros((self.n_traj, 4, Player.pred_len))
+            for n in range(self.n_traj):
+                g = G[n, :]
+                if self.isoffender:
+                    ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
+                                                       (-10, 510), (-20, 420), v_bound)  # Hard code
+                else:
+                    ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
+                                                       (-30, 530), (-50, 450), v_bound)  # Hard code
         else:
-            # Defenders in 1v1 have trajectories evenly distributed
-            if mode == '1v1':
-                for i in range(N):
-                    G[i, 0] = r * np.cos(i * 2 * np.pi / N) + self.x
-                    G[i, 1] = r * np.sin(i * 2 * np.pi / N) + self.y
-            # Defenders in mv1 have their trajectories pointing ahead of the ball holder
-            else:                
-                try:
-                    # Calculate the distance to the ball holder
-                    for j in range(len(player_list)):
-                        if player_list[j].holding:
-                            nbclass = j
-                    dist_nbclass = ((player_list[nbclass].x - self.x) ** 2 + (player_list[nbclass].y - self.y) ** 2) ** 0.5
-                    
-                    # Distance higher than 100: go more ahead of the ball holder
-                    if dist_nbclass > 100:
-                        for i in range(N):
-                            G[i, 0] = player_list[nbclass].x + 20 + i * 10
-                            
-                            if player_list[nbclass].y - self.y >= 0:
-                                G[i, 1] = player_list[nbclass].y + 100 
-                            else:
-                                G[i, 1] = player_list[nbclass].y - 100 
-
-                    # Distance lower than 100: go a little bit ahead of the ball holder
-                    else:
-                        for i in range(N):
-                            G[i, 0] = player_list[nbclass].x + 20 + (i * 5) * dist_nbclass / 100
-                            if player_list[nbclass].y - self.y >= 0:
-                                G[i, 1] = player_list[nbclass].y + 100
-                            else:
-                                G[i, 1] = player_list[nbclass].y - 100
-
-                except:
-                    # If the ball is midair (no ball holder), act the same as in 1v1 mode
-                    for i in range(N):
-                        G[i, 0] = r * np.cos(i * 2 * np.pi / N) + self.x
-                        G[i, 1] = r * np.sin(i * 2 * np.pi / N) + self.y
-
-        # Time interval
-        dt = 0.1
-
-        # Current motion state
-        z_a = np.array([self.x, self.y, 0, 0])
-
-        # Calculate trajectory candidates
-        ZZ_a = np.zeros((N, 4, Player.pred_len))
-        for n in range(N):
+            # Calculate trajectory candidates
+            ZZ_a = np.zeros((1, 4, Player.pred_len))
+            
             g = G[n, :]
             if self.isoffender:
-                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
-                                                   (-10, 510), (-20, 420), v_bound)  # Hard code
+                ZZ_a[0, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
+                                                    (-10, 510), (-20, 420), v_bound)  # Hard code
             else:
-                ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
-                                                   (-30, 530), (-50, 450), v_bound)  # Hard code
+                ZZ_a[0, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
+                                                    (-30, 530), (-50, 450), v_bound)  # Hard code
 
         return ZZ_a
 
@@ -251,7 +275,7 @@ class Player(Agent):
             x: real, the distance between a defender and the QB
             ------------------------------------------------
             Returns the passing willingness according to x.
-            Don't ask why these coefficients. It's quite muthical!
+            Don't ask why these coefficients. It's quite magical!
         '''
 
         if x > 100:

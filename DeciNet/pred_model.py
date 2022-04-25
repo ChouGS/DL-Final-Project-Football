@@ -176,25 +176,25 @@ class PredGAT(nn.Module):
         if cfg.AGG.USE_BN:
             for i in range(1, len(aggr_structure)):
                 att_q += [(f'q_bn_{i}', nn.BatchNorm1d(23)),
-                           (f'q_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
-                           (f'q_relu_{i}', nn.LeakyReLU(0.2))]
+                          (f'q_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
+                          (f'q_relu_{i}', nn.LeakyReLU(0.2))]
                 att_k += [(f'k_bn_{i}', nn.BatchNorm1d(23)),
-                           (f'k_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
-                           (f'k_relu_{i}', nn.LeakyReLU(0.2))]
+                          (f'k_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
+                          (f'k_relu_{i}', nn.LeakyReLU(0.2))]
                 att_v += [(f'v_bn_{i}', nn.BatchNorm1d(23)),
-                           (f'v_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
-                           (f'v_relu_{i}', nn.LeakyReLU(0.2))]
+                          (f'v_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
+                          (f'v_relu_{i}', nn.LeakyReLU(0.2))]
             self.att_q = nn.Sequential(OrderedDict(att_q))
             self.att_k = nn.Sequential(OrderedDict(att_k))
             self.att_v = nn.Sequential(OrderedDict(att_v))
         else:
             for i in range(1, len(aggr_structure)):
                 att_q += [(f'q_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
-                           (f'q_relu_{i}', nn.LeakyReLU(0.2))]
+                          (f'q_relu_{i}', nn.LeakyReLU(0.2))]
                 att_k += [(f'k_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
-                           (f'k_relu_{i}', nn.LeakyReLU(0.2))]
+                          (f'k_relu_{i}', nn.LeakyReLU(0.2))]
                 att_v += [(f'v_{i}', nn.Linear(aggr_structure[i-1], aggr_structure[i])),
-                           (f'v_relu_{i}', nn.LeakyReLU(0.2))]
+                          (f'v_relu_{i}', nn.LeakyReLU(0.2))]
             self.att_q = nn.Sequential(OrderedDict(att_q))
             self.att_k = nn.Sequential(OrderedDict(att_k))
             self.att_v = nn.Sequential(OrderedDict(att_v))
@@ -210,11 +210,13 @@ class PredGAT(nn.Module):
                      (f'outp_relu_{i}', nn.ReLU(0.2))]
         self.outp1 = nn.Sequential(OrderedDict(outp))
         self.outp2 = nn.Linear(outp_structure[-1], 2)
+        if cfg.OUTP.USE_BN:
+            self.outp2 = nn.Sequential(OrderedDict([('outp_bnf', nn.BatchNorm1d(23)), ('outp_fc', self.outp2)]))
 
     def forward(self, x):
         # Shape of x: bs * 23 * 3 (x, y, team_id)
         message = self.message(x)
-        summed_msg, _ = torch.max(message, 1, keepdim=True)
+        summed_msg = torch.mean(message, 1, keepdim=True)
         
         summed_msg = torch.Tensor.repeat(summed_msg, (1, message.shape[1], 1)) - message
 

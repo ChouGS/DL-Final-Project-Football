@@ -84,11 +84,12 @@ if __name__ == '__main__':
     start_epoch = 0
     if args.continue_training:
         start_epoch, sd_path = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/off_gat')
-        if sd_path is not None:
+        if start_epoch == -1:
+            start_epoch = cfg.MODEL.GAT.EPOCH
+            off_gat = torch.load(sd_path)
+        elif sd_path is not None:
             state_dict = torch.load(sd_path)
             off_gat.load_state_dict(state_dict)   
-        if start_epoch == -1:
-            start_epoch = cfg.MODEL.GAT.EPOCH 
 
     # Optimizer
     off_optim = optim.Adam(off_gat.parameters(), cfg.MODEL.GAT.LR)
@@ -111,6 +112,8 @@ if __name__ == '__main__':
         for i, (data, pos, v) in enumerate(off_trloader):
             # GAT forward
             off_decision = off_gat(data)
+            import pdb
+            pdb.set_trace()
             off_data = make_off_data(data, off_decision)
 
             # score loss
@@ -123,7 +126,7 @@ if __name__ == '__main__':
             off_direction_loss_val = dir_loss(off_decision, v)
             off_direction_loss.append(off_direction_loss_val.item())
 
-            off_gat_loss_val = -1000 * off_score_loss_val + 2 * off_direction_loss_val + off_velo_loss_val
+            off_gat_loss_val = -cfg.W_SCORE * off_score_loss_val + cfg.W_DIRE * off_direction_loss_val + cfg.W_VELO * off_velo_loss_val
             off_gat_loss.append(off_gat_loss_val.item())
 
             off_optim.zero_grad()
@@ -139,7 +142,7 @@ if __name__ == '__main__':
                 
         if e % cfg.SAVE_FREQ == 0:
             torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_{e}.th')
-    torch.save(off_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_final.th')
+    torch.save(off_gat, f'DeciNet/results/{cfg.NAME}/models/off_gat/off_gat_final.th')
     
     
     
@@ -154,11 +157,12 @@ if __name__ == '__main__':
     start_epoch = 0
     if args.continue_training:
         start_epoch, sd_path = find_last_epoch(f'DeciNet/results/{cfg.NAME}/models/def_gat')
-        if sd_path is not None:
+        if start_epoch == -1:
+            start_epoch = cfg.MODEL.GAT.EPOCH
+            def_gat = torch.load(sd_path)
+        elif sd_path is not None:
             state_dict = torch.load(sd_path)
             def_gat.load_state_dict(state_dict)    
-        if start_epoch == -1:
-            start_epoch = cfg.MODEL.GAT.EPOCH 
 
     # Optimizer
     def_optim = optim.Adam(def_gat.parameters(), cfg.MODEL.GAT.LR)
@@ -191,7 +195,7 @@ if __name__ == '__main__':
             def_direction_loss_val = dir_loss(def_decision, v)
             def_direction_loss.append(def_direction_loss_val.item())
 
-            def_gat_loss_val = 1000 * def_score_loss_val + 2 * def_direction_loss_val + def_velo_loss_val
+            def_gat_loss_val = cfg.W_SCORE * def_score_loss_val + cfg.W_DIRE * def_direction_loss_val + cfg.W_VELO * def_velo_loss_val
             def_gat_loss.append(def_gat_loss_val.item())
 
             def_optim.zero_grad()
@@ -207,7 +211,7 @@ if __name__ == '__main__':
                 
         if e % cfg.SAVE_FREQ == 0:
             torch.save(def_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_{e}.th')
-    torch.save(def_gat.state_dict(), f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_final.th')
+    torch.save(def_gat, f'DeciNet/results/{cfg.NAME}/models/def_gat/def_gat_final.th')
 
     loss_dict = {
         'off_score_loss': off_score_loss,
@@ -249,7 +253,7 @@ if __name__ == '__main__':
         off_direction_loss_val = dir_loss(off_decision, v)
         acc_direction_loss += off_direction_loss_val.item()
 
-        off_gat_loss_val = -1000 * off_score_loss_val + 2 * off_direction_loss_val + off_velo_loss_val
+        off_gat_loss_val = -cfg.W_SCORE * off_score_loss_val + cfg.W_DIRE * off_direction_loss_val + cfg.W_VELO * off_velo_loss_val
         acc_gat_loss += off_gat_loss_val.item()
 
         nums_seen += off_data.shape[0]
@@ -281,7 +285,7 @@ if __name__ == '__main__':
         def_direction_loss_val = dir_loss(def_decision, v)
         acc_direction_loss += def_direction_loss_val.item()
 
-        def_gat_loss_val = 1000 * def_score_loss_val + 2 * def_direction_loss_val + def_velo_loss_val
+        def_gat_loss_val = cfg.W_SCORE * def_score_loss_val + cfg.W_DIRE * def_direction_loss_val + cfg.W_VELO * def_velo_loss_val
         acc_gat_loss += def_gat_loss_val.item()
 
         nums_seen += def_data.shape[0]
