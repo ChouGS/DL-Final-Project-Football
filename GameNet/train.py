@@ -83,7 +83,7 @@ if __name__ == '__main__':
         epoch = cfg.MODEL.G.EPOCH
         ap_eval = PredATT(cfg.MODEL.ATT)
         #with open("ap_pred.th", 'rb') as f:
-        state_dict = torch.load('/Users/yubofeng/Downloads/DL-Final-Project-Football/ap_pred_final.th')
+        state_dict = torch.load('/Users/jacksonwang/Downloads/ap_pred_final_small.th')
         ap_eval.load_state_dict(state_dict)
         ap_eval.eval()
         # ap_eval_opt = optim.Adam(ap_eval.parameters(), lr=cfg.MODEL.X.LR)
