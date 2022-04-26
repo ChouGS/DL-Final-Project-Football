@@ -108,7 +108,7 @@ class Player(Agent):
 
         # If the player is waiting for a pass, stand still
         if self.standby:
-            return np.repeat(self.trajectory.reshape(1, 4, -1), self.n_traj, axis=0)
+            return np.repeat(self.trajectory.reshape(1, 4, -1), self.n_traj, axis=0), np.repeat(self.trajectory.reshape(1, 4, -1), self.n_traj, axis=0)
 
         # Decide acceleration penalty according to the position of the nearest opponent and game mode
         min_distance = 1e8
@@ -169,15 +169,14 @@ class Player(Agent):
 
         # Offenders have more candidates pointing rightward
         if self.isoffender:
-            if solver is None or mode == '1v1':
-                # CGT logics
-                for i in range(-4, 5):     
-                    G[(i + self.n_traj) % self.n_traj, 0] = r * np.cos(i * 2 * np.pi / 16) + self.x
-                    G[(i + self.n_traj) % self.n_traj, 1] = r * np.sin(i * 2 * np.pi / 16) + self.y
-                for i in range(5, 8):
-                    G[i, 0] = r * np.cos((i * 2 - 4) * 2 * np.pi / 16) + self.x
-                    G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
-            else:
+            # CGT logics
+            for i in range(-4, 5):     
+                G[(i + self.n_traj) % self.n_traj, 0] = r * np.cos(i * 2 * np.pi / 16) + self.x
+                G[(i + self.n_traj) % self.n_traj, 1] = r * np.sin(i * 2 * np.pi / 16) + self.y
+            for i in range(5, 8):
+                G[i, 0] = r * np.cos((i * 2 - 4) * 2 * np.pi / 16) + self.x
+                G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
+            if mode == 'mv1' and solver is not None:
                 # DL logics
                 data = np.array([[player_list[i].x, player_list[i].y] for i in range(len(player_list))])
                 data = np.concatenate([data, ball_pos], 0)
@@ -189,8 +188,8 @@ class Player(Agent):
                 data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])                    
                 decision = solver.decision(data)
                 v_scale = np.linalg.norm(decision, 2)
-                G[:, 0] = decision[0, 0] / v_scale * r
-                G[:, 1] = decision[0, 1] / v_scale * r
+                # dl_decision = np.array([self.x + r, self.y])
+                dl_decision = np.array([decision[0, 0] / v_scale * r, decision[0, 1] / v_scale * r])
         else:
             # Defenders in 1v1 have trajectories evenly distributed
             if mode == '1v1':
@@ -199,40 +198,40 @@ class Player(Agent):
                     G[i, 1] = r * np.sin(i * 2 * np.pi / self.n_traj) + self.y
             # Defenders in mv1 have their trajectories pointing ahead of the ball holder
             else:
-                if solver is None:
-                    # Generate candidate 
-                    try:
-                        # Calculate the distance to the ball holder
-                        for j in range(len(player_list)):
-                            if player_list[j].holding:
-                                nbclass = j
-                        dist_nbclass = ((player_list[nbclass].x - self.x) ** 2 + (player_list[nbclass].y - self.y) ** 2) ** 0.5
-                        
-                        # Distance higher than 100: go more ahead of the ball holder
-                        if dist_nbclass > 100:
-                            for i in range(self.n_traj):
-                                G[i, 0] = player_list[nbclass].x + 20 + i * 10
-                                
-                                if player_list[nbclass].y - self.y >= 0:
-                                    G[i, 1] = player_list[nbclass].y + 100 
-                                else:
-                                    G[i, 1] = player_list[nbclass].y - 100 
-
-                        # Distance lower than 100: go a little bit ahead of the ball holder
-                        else:
-                            for i in range(self.n_traj):
-                                G[i, 0] = player_list[nbclass].x + 20 + (i * 5) * dist_nbclass / 100
-                                if player_list[nbclass].y - self.y >= 0:
-                                    G[i, 1] = player_list[nbclass].y + 100
-                                else:
-                                    G[i, 1] = player_list[nbclass].y - 100
-
-                    except:
-                        # If the ball is midair (no ball holder), act the same as in 1v1 mode
+                # Generate candidate 
+                try:
+                    # Calculate the distance to the ball holder
+                    for j in range(len(player_list)):
+                        if player_list[j].holding:
+                            nbclass = j
+                    dist_nbclass = ((player_list[nbclass].x - self.x) ** 2 + (player_list[nbclass].y - self.y) ** 2) ** 0.5
+                    
+                    # Distance higher than 100: go more ahead of the ball holder
+                    if dist_nbclass > 100:
                         for i in range(self.n_traj):
-                            G[i, 0] = r * np.cos(i * 2 * np.pi / self.n_traj) + self.x
-                            G[i, 1] = r * np.sin(i * 2 * np.pi / self.n_traj) + self.y
-                else:
+                            G[i, 0] = player_list[nbclass].x + 20 + i * 10
+                            
+                            if player_list[nbclass].y - self.y >= 0:
+                                G[i, 1] = player_list[nbclass].y + 100 
+                            else:
+                                G[i, 1] = player_list[nbclass].y - 100 
+
+                    # Distance lower than 100: go a little bit ahead of the ball holder
+                    else:
+                        for i in range(self.n_traj):
+                            G[i, 0] = player_list[nbclass].x + 20 + (i * 5) * dist_nbclass / 100
+                            if player_list[nbclass].y - self.y >= 0:
+                                G[i, 1] = player_list[nbclass].y + 100
+                            else:
+                                G[i, 1] = player_list[nbclass].y - 100
+
+                except:
+                    # If the ball is midair (no ball holder), act the same as in 1v1 mode
+                    for i in range(self.n_traj):
+                        G[i, 0] = r * np.cos(i * 2 * np.pi / self.n_traj) + self.x
+                        G[i, 1] = r * np.sin(i * 2 * np.pi / self.n_traj) + self.y
+
+                if solver is not None:
                     data = np.array([[player_list[i].x, player_list[i].y] for i in range(len(player_list))])
                     data = np.concatenate([data, ball_pos], 0)
                     position = np.array([self.x, self.y])[np.newaxis, :]
@@ -243,8 +242,8 @@ class Player(Agent):
                     data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])                    
                     decision = solver.decision(data)
                     v_scale = np.linalg.norm(decision, 2)
-                    G[:, 0] = decision[0, 0] / v_scale * r
-                    G[:, 1] = decision[0, 1] / v_scale * r
+                    # dl_decision = np.array([self.x - r, self.y])
+                    dl_decision = np.array([decision[0, 0] / v_scale * r, decision[0, 1] / v_scale * r])
 
         # Time interval
         dt = 0.1
@@ -254,16 +253,21 @@ class Player(Agent):
 
         # Calculate trajectory candidates
         ZZ_a = np.zeros((self.n_traj, 4, Player.pred_len))
+        DL_a = None
         for n in range(self.n_traj):
             g = G[n, :]
             if self.isoffender:
                 ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
-                                                    (-10, 510), (-20, 420), v_bound)  # Hard code
+                                                   (-10, 510), (-20, 420), v_bound)  # Hard code
             else:
                 ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
-                                                    (-30, 530), (-50, 450), v_bound)  # Hard code
-
-        return ZZ_a
+                                                   (-30, 530), (-50, 450), v_bound)  # Hard code
+            if mode == 'mv1' and solver is not None:
+                DL_a = np.zeros((1, 4, Player.pred_len))
+                dl_a = np.array([self.x, self.y, 0, 0])
+                DL_a[0, :, :] = GenerateTrajectory(dl_a, dl_decision, Player.pred_len, dt, acceleration, u_penalty, \
+                                                   (-30, 530), (-50, 450), v_bound)
+        return ZZ_a, DL_a
 
     def motion(self):
         '''

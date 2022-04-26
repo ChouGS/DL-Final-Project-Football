@@ -288,7 +288,7 @@ def EvaluateTrajectoriesForSafety(Za, Zb, p, q, traj_list, players, mode='1v1', 
             else:
                 for h in range(H):
                     for l in range(N):
-                        dist_h = np.linalg.norm(traj_list[k][l][0:2, h] - Zb[0:2, h])
+                        dist_h = np.linalg.norm(traj_list[k][0][l][0:2, h] - Zb[0:2, h])
                         if dist_h < dist_close:
                             dist_close = dist_h
         

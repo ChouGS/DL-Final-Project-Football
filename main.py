@@ -123,16 +123,16 @@ for iter in range(num_sims):
                     for i in range(N):
                         for j in range(N):
                             if game.players[p].isoffender:
-                                A[p, q, i, j] = EvaluateTrajectories(traj_list[p][i], traj_list[q][j],
+                                A[p, q, i, j] = EvaluateTrajectories(traj_list[p][0][i], traj_list[q][0][j],
                                                                     game.players[p], game.players[q],
                                                                     mode, offender_pattern)
                             elif game.players[p].role == 'Safety':
-                                A[p, q, i, j] = EvaluateTrajectoriesForSafety(traj_list[p][i], traj_list[q][j], p, q, 
+                                A[p, q, i, j] = EvaluateTrajectoriesForSafety(traj_list[p][0][i], traj_list[q][0][j], p, q, 
                                                                               traj_list, game.players, mode)
                             else:
-                                A[p, q, i, j] = EvaluateTrajectories(traj_list[p][i], traj_list[q][j], 
-                                                                    game.players[p], game.players[q], 
-                                                                    mode, offender_pattern)
+                                A[p, q, i, j] = EvaluateTrajectories(traj_list[p][0][i], traj_list[q][0][j], 
+                                                                     game.players[p], game.players[q], 
+                                                                     mode, offender_pattern)
 
             # Calculate probability of actions between each pair of players
             probs = np.zeros((2*num_players, N))
@@ -149,9 +149,20 @@ for iter in range(num_sims):
 
             # Make decision
             for p in range(2*num_players):
-                prob = probs[p] / np.sum(probs[p])
-                action = ChooseAction(prob)
-                game.players[p].trajectory = traj_list[p][action]
+                if game.players[p].isoffender:
+                    if can_pass == False and args.offensive_agent == 'DL':
+                        game.players[p].trajectory = traj_list[p][1][0]
+                    else:
+                        prob = probs[p] / np.sum(probs[p])
+                        action = ChooseAction(prob)
+                        game.players[p].trajectory = traj_list[p][0][action]
+                else:
+                    if can_pass == False and args.defensive_agent == 'DL':
+                        game.players[p].trajectory = traj_list[p][1][0]
+                    else:
+                        prob = probs[p] / np.sum(probs[p])
+                        action = ChooseAction(prob)
+                        game.players[p].trajectory = traj_list[p][0][action]
 
             # Generate data
             if gen_data:
