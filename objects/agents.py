@@ -1,4 +1,5 @@
 import numpy as np
+from tables import IsDescription
 from torch import Tensor
 import random
 
@@ -176,7 +177,7 @@ class Player(Agent):
             for i in range(5, 8):
                 G[i, 0] = r * np.cos((i * 2 - 4) * 2 * np.pi / 16) + self.x
                 G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
-            if mode == 'mv1' and solver is not None:
+            if mode == 'mv1' and not self.standby and solver is not None:
                 # DL logics
                 data = np.array([[player_list[i].x, player_list[i].y] for i in range(len(player_list))])
                 data = np.concatenate([data, ball_pos], 0)
@@ -184,12 +185,12 @@ class Player(Agent):
                 position = np.repeat(position, len(player_list) + 1, 0)
                 prev_v = self.get_prev_v()[np.newaxis, :]
                 prev_v = np.repeat(prev_v, len(player_list) + 1, 0)
-                max_v = np.ones((len(player_list) + 1, 1))
-                data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])                    
+                max_v = np.ones((len(player_list) + 1, 1)) * 150
+                data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])
                 decision = solver.decision(data)
                 v_scale = np.linalg.norm(decision, 2)
                 # dl_decision = np.array([self.x + r, self.y])
-                dl_decision = np.array([decision[0, 0] / v_scale * r, decision[0, 1] / v_scale * r])
+                dl_decision = np.array([self.x + decision[0, 0] / v_scale * r, self.y + decision[0, 1] / v_scale * r])
         else:
             # Defenders in 1v1 have trajectories evenly distributed
             if mode == '1v1':
@@ -238,12 +239,12 @@ class Player(Agent):
                     position = np.repeat(position, len(player_list) + 1, 0)
                     prev_v = self.get_prev_v()[np.newaxis, :]
                     prev_v = np.repeat(prev_v, len(player_list) + 1, 0)
-                    max_v = np.ones((len(player_list) + 1, 1))
+                    max_v = np.ones((len(player_list) + 1, 1)) * 10
                     data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])                    
                     decision = solver.decision(data)
                     v_scale = np.linalg.norm(decision, 2)
                     # dl_decision = np.array([self.x - r, self.y])
-                    dl_decision = np.array([decision[0, 0] / v_scale * r, decision[0, 1] / v_scale * r])
+                    dl_decision = np.array([self.x + decision[0, 0] / v_scale * r, self.y + decision[0, 1] / v_scale * r])
 
         # Time interval
         dt = 0.1
@@ -262,11 +263,17 @@ class Player(Agent):
             else:
                 ZZ_a[n, :, :] = GenerateTrajectory(z_a, g, Player.pred_len, dt, acceleration, u_penalty, \
                                                    (-30, 530), (-50, 450), v_bound)  # Hard code
-            if mode == 'mv1' and solver is not None:
+            if mode == 'mv1' and not self.standby and solver is not None:
                 DL_a = np.zeros((1, 4, Player.pred_len))
                 dl_a = np.array([self.x, self.y, 0, 0])
                 DL_a[0, :, :] = GenerateTrajectory(dl_a, dl_decision, Player.pred_len, dt, acceleration, u_penalty, \
                                                    (-30, 530), (-50, 450), v_bound)
+            elif mode == 'mv1' and not self.isoffender and solver is not None:
+                DL_a = np.zeros((1, 4, Player.pred_len))
+                dl_a = np.array([self.x, self.y, 0, 0])
+                DL_a[0, :, :] = GenerateTrajectory(dl_a, dl_decision, Player.pred_len, dt, acceleration, u_penalty, \
+                                                   (-30, 530), (-50, 450), v_bound)
+
         return ZZ_a, DL_a
 
     def motion(self):

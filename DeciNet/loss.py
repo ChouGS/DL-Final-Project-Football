@@ -9,14 +9,23 @@ class DirectionLoss(nn.Module):
         cos_sim = torch.cosine_similarity(dir1, dir2, dim=1).flatten()
         return torch.mean(1 / 1.1 + cos_sim)
 
+class OOBLoss(nn.Module):
+    def __init__(self, lbound=0, ubound=400) -> None:
+        super(OOBLoss, self).__init__()
+        self.lb = lbound
+        self.ub = ubound
+
+    def forward(self, pos, v):
+        ppos = pos + v * 0.05
+        ppos = ppos[:, 1]
+        return torch.mean(1 / (ppos + 6) + 1 / (406 - ppos))
+
 class VeloLoss(nn.Module):
-    def __init__(self, base=10, max_v=10) -> None:
+    def __init__(self, best_v=90) -> None:
         super().__init__()
-        self.base = base
-        self.max_v = max_v
-    
+        self.best_v = best_v
+
     def forward(self, v):
-        v_val = torch.norm(v)
-        v_diff = v_val - self.max_v
-        base = torch.ones_like(v_diff) * self.base
-        return torch.mean(torch.pow(base, v_diff))
+        v_val = torch.norm(v, dim=1)
+        v_diff = v_val - self.best_v
+        return torch.mean(v_diff * v_diff)

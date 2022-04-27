@@ -11,6 +11,7 @@ _C.PRETRAIN_DIR = ''
 _C.W_SCORE = 100.
 _C.W_DIRE = 5.
 _C.W_VELO = 1.
+_C.W_BOUND = 1.
 _C.DATA = CN()
 
 _C.DATA.TESTRATIO = 0.2

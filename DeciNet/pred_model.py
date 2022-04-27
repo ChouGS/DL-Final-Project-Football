@@ -182,8 +182,9 @@ class PredGAT(nn.Module):
         for i in range(1, len(outp_structure)):
             if cfg.OUTP.USE_BN:
                 outp += [(f'outp_bn_{i}', nn.BatchNorm1d(outp_structure[i-1]))]
-            outp += [(f'outp_conv_{i}', nn.Conv1d(outp_structure[i-1], outp_structure[i], 1)),
-                     (f'outp_relu_{i}', nn.ReLU(0.2))]
+            outp += [(f'outp_conv_{i}', nn.Conv1d(outp_structure[i-1], outp_structure[i], 1))]
+            if i != len(outp_structure) - 1:
+                outp += [(f'outp_relu_{i}', nn.LeakyReLU(0.2))]
 
         self.outp = nn.Sequential(OrderedDict(outp))
 
