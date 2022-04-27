@@ -206,4 +206,4 @@ if __name__ == '__main__':
     # append_ball_dist(data_root)
     # for beta in np.arange(0.2, 1, 0.05):
     # append_self_pos(data_root)
-    make_scored_data(['1', '2', '3', '11oLpHcL', 'cls_dataset_1tick'], beta=0.9)
+    make_scored_data(['1', '2', '3', '11oLpHcL', 'cls_dataset_1tick'], beta=1.1)
