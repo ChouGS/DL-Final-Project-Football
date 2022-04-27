@@ -1,5 +1,5 @@
 NAME: 'attention'
-DATA_DIR: '/Users/yubofeng/Downloads/DL-Final-Project-Football/raw_data/11oLpHcL/synthesized'
+DATA_DIR: '/Users/jacksonwang/Documents/GitHub/DL-Final-Project-Football/raw_data/11oLpHcL/synthesized'
 USE_AE: False
 MTASK: False
 PRED: 'MLP'
