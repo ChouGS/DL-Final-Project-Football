@@ -9,7 +9,7 @@ import shutil
 import argparse
 
 from tools import find_last_epoch
-from pred_model import PredAE, PredX, PredTD, PredATT
+from pred_model import PredAE, PredX, PredTD, ScoreATT
 from dataset import PredictorDataset, AttentionDataset
 from vis import vis_loss_curve
 from config.default import get_default_cfg
@@ -234,8 +234,8 @@ if __name__ == '__main__':
         bp_pred_opt = optim.Adam(bp_pred.parameters(), lr=cfg.MODEL.X.LR)
         epoch = cfg.MODEL.X.EPOCH
     elif cfg.PRED == 'ATT':
-        bp_pred = PredATT(cfg.MODEL.ATT)
-        ap_pred = PredATT(cfg.MODEL.ATT)
+        bp_pred = ScoreATT(cfg.MODEL.ATT)
+        ap_pred = ScoreATT(cfg.MODEL.ATT)
         ap_pred_opt = optim.Adam(ap_pred.parameters(), lr=cfg.MODEL.ATT.LR)
         bp_pred_opt = optim.Adam(bp_pred.parameters(), lr=cfg.MODEL.ATT.LR)
         epoch = cfg.MODEL.ATT.EPOCH

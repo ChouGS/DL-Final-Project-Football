@@ -79,9 +79,10 @@ class PredAE(nn.Module):
         x_rec = self.decoder(z)
         return z, x_rec
 
-class PredATT(nn.Module):
+
+class ScoreATT(nn.Module):
     def __init__(self, cfg) -> None:
-        super(PredATT, self).__init__()
+        super(ScoreATT, self).__init__()
         latent_dim = cfg.QKV_STRUCTURE
         latent_dim = [6] + latent_dim
         outp_dim = [latent_dim[-1]] + cfg.OUTP_CHN

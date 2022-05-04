@@ -1,5 +1,4 @@
 import numpy as np
-from tables import IsDescription
 from torch import Tensor
 import random
 
@@ -179,6 +178,7 @@ class Player(Agent):
                 G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
             if mode == 'mv1' and not self.standby and solver is not None:
                 # DL logics
+                # Create 
                 data = np.array([[player_list[i].x, player_list[i].y] for i in range(len(player_list))])
                 data = np.concatenate([data, ball_pos], 0)
                 position = np.array([self.x, self.y])[np.newaxis, :]
@@ -189,7 +189,10 @@ class Player(Agent):
                 data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])
                 decision = solver.decision(data)
                 v_scale = np.linalg.norm(decision, 2)
-                # dl_decision = np.array([self.x + r, self.y])
+                # Clip velocity to meet with speed limit
+                if v_scale > self.speed:
+                    decision = decision / v_scale * self.speed
+                    v_scale = self.speed
                 dl_decision = np.array([self.x + decision[0, 0] / v_scale * r, self.y + decision[0, 1] / v_scale * r])
         else:
             # Defenders in 1v1 have trajectories evenly distributed

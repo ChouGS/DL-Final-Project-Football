@@ -134,6 +134,22 @@ def make_scored_data(root_list, step=10, nplayer=11, beta=0.8):
             else:
                 data_bp = np.concatenate([data_bp, data], 0)
 
+    qb_index = [i for i in range(0, data_ap.shape[0], 22)]
+    wr_index = [i + 1 for i in range(0, data_ap.shape[0], 22)] + \
+               [i + 2 for i in range(0, data_ap.shape[0], 22)] 
+    to_index = [i + j for i in range(0, data_ap.shape[0], 22) for j in range(3, 11)]
+    cb_index = [i + 11 for i in range(0, data_ap.shape[0], 22)] + \
+               [i + 12 for i in range(0, data_ap.shape[0], 22)]
+    td_index = [i + j for i in range(0, data_ap.shape[0], 22) for j in range(13, 20)]
+    sf_index = [i + 20 for i in range(0, data_ap.shape[0], 22)] + \
+               [i + 21 for i in range(0, data_ap.shape[0], 22)]
+
+    np.save(os.path.join('raw_data', '11oLpHcL', 'synthesized', 'data_after_passing_qb.npy'), data_ap[qb_index])
+    np.save(os.path.join('raw_data', '11oLpHcL', 'synthesized', 'data_after_passing_wr.npy'), data_ap[wr_index])
+    np.save(os.path.join('raw_data', '11oLpHcL', 'synthesized', 'data_after_passing_to.npy'), data_ap[to_index])
+    np.save(os.path.join('raw_data', '11oLpHcL', 'synthesized', 'data_after_passing_cb.npy'), data_ap[cb_index])
+    np.save(os.path.join('raw_data', '11oLpHcL', 'synthesized', 'data_after_passing_td.npy'), data_ap[td_index])
+    np.save(os.path.join('raw_data', '11oLpHcL', 'synthesized', 'data_after_passing_sf.npy'), data_ap[sf_index])
     np.save(os.path.join('raw_data', '11oLpHcL', 'synthesized', 'data_after_passing.npy'), data_ap)
     np.save(os.path.join('raw_data', '11oLpHcL', 'synthesized', 'data_before_passing.npy'), data_bp)
 

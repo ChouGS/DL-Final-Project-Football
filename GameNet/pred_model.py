@@ -66,6 +66,7 @@ class PredAE(nn.Module):
         z = self.encoder(x)
         x_rec = self.decoder(z)
         return z, x_rec
+
 class PredATT(nn.Module):
     def __init__(self, cfg) -> None:
         super(PredATT, self).__init__()

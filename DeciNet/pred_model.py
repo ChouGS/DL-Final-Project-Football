@@ -82,9 +82,12 @@ class PredAE(nn.Module):
         return z, x_rec
 
 
-class PredATT(nn.Module):
+class ScoreATT(nn.Module):
+    '''
+    Self-attention network to predict score label
+    '''
     def __init__(self, cfg) -> None:
-        super(PredATT, self).__init__()
+        super(ScoreATT, self).__init__()
         latent_dim = cfg.QKV_STRUCTURE
         latent_dim = [6] + latent_dim
         outp_dim = [latent_dim[-1]] + cfg.OUTP_CHN
@@ -138,9 +141,35 @@ class PredATT(nn.Module):
 
         return outp
 
-class PredGAT(nn.Module):
+
+class GameMLP(nn.Module):
+    '''
+    Basic MLP model for decision making
+    '''
     def __init__(self, cfg) -> None:
-        super(PredGAT, self).__init__()
+        super(GameMLP, self).__init__()
+        latent_dims = cfg.STRUCTURE
+        feature_dim = cfg.IN_DIM
+        latent_dims = [feature_dim] + latent_dims
+        self.net = []
+        for i in range(1, len(latent_dims)):
+            if cfg.USE_BN:
+                self.net.append((f'bn{i+1}', nn.BatchNorm1d(latent_dims[i-1])))
+            self.net.append((f'fc{i+1}', nn.Linear(latent_dims[i-1], latent_dims[i])))
+            self.net.append((f'relu{i+1}', nn.LeakyReLU(0.2)))
+        self.net.append(('fc_outp', nn.Linear(latent_dims[-1], 2)))
+        self.net = nn.Sequential(OrderedDict(self.net))
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class GameGAT(nn.Module):
+    '''
+    Graph attention network for decision making
+    '''
+    def __init__(self, cfg) -> None:
+        super(GameGAT, self).__init__()
 
         # Message passing block
         message_structure = [7] + cfg.MSG.STRUCTURE

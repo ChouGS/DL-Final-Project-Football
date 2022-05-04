@@ -11,5 +11,5 @@
 *raw_data*
 *.yaml
 !PredNet/config/attention.yaml
-!DeciNet/config/gat_basic.yaml
+!DeciNet/config/gat_small_att.yaml
 !PredNet/config/small_attention.yaml

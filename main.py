@@ -52,18 +52,28 @@ logging = args.log
 video = args.video
 gen_data = args.gen_data
 
+npy = np.zeros((args.num_sims))
+
 # Initialize result recorder
 display_prefix = f"o{offender_pattern}p{passing_pattern}c{control_pattern}"
 if logging:
     recorder = Result(f"results/{display_prefix}/results.txt")
 
 # Initialize DL model if DL method is used
-off_solver = None
-def_solver = None
+qb_solver = None
+wr_solver = None
+to_solver = None
+cb_solver = None
+td_solver = None
+sf_solver = None
 if args.offensive_agent == 'DL':
-    off_solver = DLsolver(args.offensive_agent_path, args.config_path)
+    qb_solver = DLsolver(os.path.join('algorithms/DL_model', 'qb_gat_final.th'), args.config_path)
+    wr_solver = DLsolver(os.path.join('algorithms/DL_model', 'wr_gat_final.th'), args.config_path)
+    to_solver = DLsolver(os.path.join('algorithms/DL_model', 'to_gat_final.th'), args.config_path)
 if args.defensive_agent == 'DL':
-    def_solver = DLsolver(args.defensive_agent_path, args.config_path)
+    cb_solver = DLsolver(os.path.join('algorithms/DL_model', 'cb_gat_final.th'), args.config_path)
+    td_solver = DLsolver(os.path.join('algorithms/DL_model', 'td_gat_final.th'), args.config_path)
+    sf_solver = DLsolver(os.path.join('algorithms/DL_model', 'sf_gat_final.th'), args.config_path)
 
 # Data collector
 data_root = f'raw_data/{num_players}{display_prefix}'
@@ -103,9 +113,19 @@ for iter in range(num_sims):
             ball_pos = np.array([[game.ball.x, game.ball.y]])
             for player in game.players:
                 if player.isoffender:
-                    traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, off_solver))
+                    if player.role == 'QB':
+                        traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, qb_solver))
+                    if player.role == 'Tackle_O':
+                        traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, to_solver))
+                    if player.role == 'WR':
+                        traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, wr_solver))
                 else:
-                    traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, def_solver))
+                    if player.role == 'CB':
+                        traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, cb_solver))
+                    if player.role == 'Tackle_D':
+                        traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, td_solver))
+                    if player.role == 'Safety':
+                        traj_list.append(player.trajgen(game.players, mode, control_pattern, ball_pos, sf_solver))
 
             # Decide a trajectory for each player as a Nash equilibrium
 
@@ -269,6 +289,7 @@ for iter in range(num_sims):
         end, winner, cause = game.judge_end(hard_end, cause)
         if end:
             print(f'Game over, {cause}, {winner} win.')
+            npy[iter] = game.ball.x
             if logging:
                 recorder.record(winner, cause)
             if gen_data:
@@ -322,3 +343,5 @@ if gen_data:
     make_data.make_data(f'{num_players}{display_prefix}')
     import vis_data_distribution
     vis_data_distribution.vis_distribution()
+
+np.save('out.npy', npy)

@@ -1,0 +1,28 @@
+NAME: 'gat_sep_pos'
+DATA_DIR: 'raw_data/11oLpHcL/synthesized'
+SCORENET: 'ATT'
+PRETRAIN_DIR: 'DeciNet/pretrained/ap_pred_final.th'
+
+W_SCORE: 1.
+W_DIRE: 0.001
+W_BOUND: 0.001
+W_VELO: 0.003
+
+DATA:
+  TRAINBS: 16
+  TESTBS: 16
+
+MODEL:
+  GAT:
+    LR: 0.002
+    EPOCH: 10
+    AGG:
+      NHEAD: 4
+      POOLING: 'Max'
+  ATT:
+    LR: 0.001
+    EPOCH: 10
+    NHEAD: 4
+    USE_BN: True
+    QKV_STRUCTURE: [16, 64, 16]
+    OUTP_CHN: [8, 1]
