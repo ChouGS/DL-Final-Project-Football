@@ -40,7 +40,7 @@ def make_gat_data(data, position, v):
     '''
         data: [bs, 23, 2], positions of the players+ball
         position: [bs, 2], position of the player
-        decision: [bs, 2], decision of the player
+        v: [bs, 2], last velocity of the player
     '''
     nplayers = data.shape[1]
 

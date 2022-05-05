@@ -178,17 +178,17 @@ class Player(Agent):
                 G[i, 1] = r * np.sin((i * 2 - 4) * 2 * np.pi / 16) + self.y
             if mode == 'mv1' and not self.standby and solver is not None:
                 # DL logics
-                # Create 
+                # Create data
                 data = np.array([[player_list[i].x, player_list[i].y] for i in range(len(player_list))])
                 data = np.concatenate([data, ball_pos], 0)
                 position = np.array([self.x, self.y])[np.newaxis, :]
                 position = np.repeat(position, len(player_list) + 1, 0)
                 prev_v = self.get_prev_v()[np.newaxis, :]
                 prev_v = np.repeat(prev_v, len(player_list) + 1, 0)
-                max_v = np.ones((len(player_list) + 1, 1)) * 150
+                max_v = np.ones((len(player_list) + 1, 1)) * self.speed / 20
                 data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])
                 decision = solver.decision(data)
-                v_scale = np.linalg.norm(decision, 2)
+                v_scale = max(np.linalg.norm(decision, 2), 1e-3)
                 # Clip velocity to meet with speed limit
                 if v_scale > self.speed:
                     decision = decision / v_scale * self.speed
@@ -245,6 +245,7 @@ class Player(Agent):
                     max_v = np.ones((len(player_list) + 1, 1)) * 10
                     data = Tensor(np.concatenate([data, position, prev_v, max_v], 1)[np.newaxis, :])                    
                     decision = solver.decision(data)
+                    print(decision)
                     v_scale = np.linalg.norm(decision, 2)
                     # dl_decision = np.array([self.x - r, self.y])
                     dl_decision = np.array([self.x + decision[0, 0] / v_scale * r, self.y + decision[0, 1] / v_scale * r])
@@ -302,9 +303,9 @@ class Player(Agent):
             if self.trajectory.shape[1] == 0:
                 self.trajectory = None
 
-    def get_prev_v(self, ratio=20):
+    def get_prev_v(self):
         if self.lastpos is not None:
-            return (np.array([self.x, self.y]) - self.lastpos) * ratio
+            return (np.array([self.x, self.y]) - self.lastpos)
         return np.array([5, 0]) if self.isoffender else np.array([-5, 0])
 
     def magic_func(self, x):

@@ -44,6 +44,15 @@ if __name__ == '__main__':
     td_data = np.load(os.path.join(cfg.DATA_DIR, 'data_after_passing_td.npy'))
     sf_data = np.load(os.path.join(cfg.DATA_DIR, 'data_after_passing_sf.npy'))
 
+    best_speed_dict = {
+        'cb': 10 * 0.75,
+        'wr': 10 * 0.75,
+        'sf': 10 * 0.75,
+        'td': 4.5 * 0.75,
+        'to': 4.5 * 0.75,
+        'qb': 6 * 0.75
+    }
+
     # Load pretrained predictor network
     if cfg.SCORENET == 'MLP':
         ap_pred = PredX(cfg.MODEL.X)
@@ -84,7 +93,7 @@ if __name__ == '__main__':
         # Loss functions
         dir_loss_f = DirectionLoss()
         oob_loss_f = OOBLoss()
-        velo_loss_f = VeloLoss()
+        velo_loss_f = VeloLoss(best_v=best_speed_dict[name])
         dir_loss_f.eval()
         velo_loss_f.eval()
         oob_loss_f.eval()
@@ -103,6 +112,8 @@ if __name__ == '__main__':
                 # GAT forward
                 gat_data = make_gat_data(data, pos, v)
                 decision = gat(gat_data)
+                import pdb
+                pdb.set_trace()
                 data = make_pred_data(data, pos, decision)
 
                 # score loss
