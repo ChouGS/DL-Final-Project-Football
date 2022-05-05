@@ -112,8 +112,7 @@ if __name__ == '__main__':
                 # GAT forward
                 gat_data = make_gat_data(data, pos, v)
                 decision = gat(gat_data)
-                import pdb
-                pdb.set_trace()
+
                 data = make_pred_data(data, pos, decision)
 
                 # score loss

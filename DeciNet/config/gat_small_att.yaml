@@ -1,4 +1,4 @@
-NAME: 'gat_sep_pos_nodir'
+NAME: 'true_att'
 DATA_DIR: 'raw_data/11oLpHcL/synthesized'
 SCORENET: 'ATT'
 PRETRAIN_DIR: 'DeciNet/pretrained/ap_pred_final.th'

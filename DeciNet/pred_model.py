@@ -164,17 +164,89 @@ class GameMLP(nn.Module):
         return self.net(x)
 
 
+class GATLayer(nn.Module):
+    def __init__(self, cfg, inp_dim=7) -> None:
+        super(GATLayer, self).__init__()
+        
+        # Message block
+        message_structure = [inp_dim] + cfg.MSG.STRUCTURE
+        self.message = []
+        for i in range(1, len(message_structure) - 1):
+            if cfg.MSG.USE_BN:
+                self.message.append((f'msg_bn_{i}', nn.BatchNorm1d(23)))
+            self.message.append((f'msg_fc_{i}', nn.Linear(message_structure[i - 1], message_structure[i])))
+            self.message.append((f'msg_relu_{i}', nn.LeakyReLU(0.2)))
+        if cfg.MSG.USE_BN:
+            self.message.append((f'msg_bn_{len(message_structure) - 1}', nn.BatchNorm1d(23)))
+        self.message.append((f'msg_fc_{len(message_structure) - 1}', nn.Linear(message_structure[-2], message_structure[-1])))
+        self.message = nn.Sequential(OrderedDict(self.message))
+
+        # Attention block
+        self.attention = nn.Linear(message_structure[-1] * 2, cfg.AGG.NHEAD)
+        self.normalize = nn.Softmax(2)
+        if cfg.AGG.NHEAD > 1:
+            self.squeeze_back = nn.Linear(cfg.AGG.NHEAD * message_structure[-1], message_structure[-1])
+        
+
+    def forward(self, x):
+        # Extract vertice features
+        fx = self.message(x)
+
+        # Do pair-fusion
+        fx_cat = torch.zeros(x.shape[0], x.shape[1], x.shape[1], fx.shape[-1] * 2)
+        for i in range(fx_cat.shape[1]):
+            fx_cat[:, i, :, :fx.shape[-1]] = fx[:, i].unsqueeze(1)
+        for i in range(fx_cat.shape[2]):
+            fx_cat[:, :, i, fx.shape[-1]:] = fx[:, i].unsqueeze(1)
+
+        # Calculate attention weights
+        att = self.attention(fx_cat)
+        att = self.normalize(att)       # bs x 23 x 23 x nhead
+
+        att_cat = []
+        for i in range(att.shape[-1]):
+            att_item = torch.zeros_like(fx)
+            for j in range(x.shape[1]):
+                att_item[:, j, :] = torch.sum(torch.mul(att[:, j, :, i:i+1], fx), 1)
+            att_cat.append(att_item)
+        
+        att_cat = torch.cat(att_cat, -1)
+
+        if att.shape[-1] > 1:
+            att_cat = self.squeeze_back(att_cat)
+        
+        return att_cat
+
+
 class GameGAT(nn.Module):
+    def __init__(self, cfg) -> None:
+        super(GameGAT, self).__init__()
+
+        self.gat1 = GATLayer(cfg)
+        self.gat2 = GATLayer(cfg, inp_dim=8)
+
+        self.outp = nn.Linear(8, 2)
+
+    def forward(self, x):
+        x = self.gat1(x)
+        x = self.gat2(x)
+        x = torch.mean(x, 1)
+        return self.outp(x)
+
+
+class gameGAT(nn.Module):
     '''
     Graph attention network for decision making
     '''
     def __init__(self, cfg) -> None:
-        super(GameGAT, self).__init__()
+        super(gameGAT, self).__init__()
 
         # Message passing block
         message_structure = [7] + cfg.MSG.STRUCTURE
         self.message = []
         for i in range(1, len(message_structure) - 1):
+            if cfg.MSG.USE_BN:
+                self.message.append((f'msg_bn_{i}', nn.BatchNorm1d(23)))
             self.message.append((f'msg_fc_{i}', nn.Linear(message_structure[i - 1], message_structure[i])))
             self.message.append((f'msg_relu_{i}', nn.LeakyReLU(0.2)))
         if cfg.MSG.USE_BN:
@@ -218,7 +290,7 @@ class GameGAT(nn.Module):
         self.outp = nn.Sequential(OrderedDict(outp))
 
     def forward(self, x):
-        # Shape of x: bs * 23 * 2 (x, y)
+        # Shape of x: bs * 23 * 7 (x, y)
         message = self.message(x)
         summed_msg = torch.sum(message, 1, keepdim=True)
         
