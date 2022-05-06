@@ -1,23 +1,50 @@
-# CGT-Final-Project-Football
+# DL-Final-Project-Football
 
 Run `objects/gameyard.py` to see several sample visualizations
 
-## Newest: instructions for running `main.py`
+## Quick Start Guide
 
-`-ns` indicates the number of simulations.
+### To run new simulations
+
+`python main.py`
+
+commandline flags:
+
+`-ns` or `--num_sims` indicates the number of simulations.
 
 `-np` or `--num_players` indicates the number of players on each team.
 
-`-op` or `--offender_pattern` indicates the strategy for offenders. Must be 'H'/'L'.
+`-oa` or `--offensive_agent` should be set to 'DL' if deep learning agent is used on the offensive team.
 
-`-pp` or `--passing_pattern` indicates the strategy for quaterback when they make `pass_or_not` decisions. Must be 'H'/'L'.
+`-da` or `--defensive_agent` should be set to 'DL' if deep learning agent is used on the defensive team.
 
-`-cp` or `--control_pattern` indicates the configuration of `u_penalty`. Must be 'H'/'L'.
+To run the code successfully you should have the following files:
 
-For example, if you wish to run an experiment for 100 games with `offender_pattern=H, passing_pattern=L, control_pattern=H`, you should key in the command
+`algorithms/DL_model/config/gat_small_att.yaml` as the game configuration
+`algorithms/DL_model/{xx}_gat_final.th` as the GameNet checkpoint for different positions. Here {xx}=qb/to/wr/td/sf/cb.
 
-```bash
-./main.py -ns 100 -op H -pp L -cp H
-```
+### To train ScoreNet
 
-LHL11.mp4 is a sample video for the result at indicating '-ns 1 -np 11 -op L -pp H -cp L'.
+`python ./ScoreNet/train_ap_att.py`
+
+To run the code successfully you should have the following files:
+
+`ScoreNet/configs/____.yaml` as the configuration used for ScoreNet training.
+
+`raw_data/11oLpHcL/synthesized/data_after_passing.npy` as the input data file.
+
+After training is done you can see `ScoreNet/results` for results.
+
+### To train GameNet
+
+`python ./GameNet/train_ap_att.py`
+
+To run the code successfully you should have the following files:
+
+`GameNet/configs/____.yaml` as the configuration used for GameNet training.
+
+`raw_data/11oLpHcL/synthesized/data_after_passing_{xx}.npy` as the input data file. Here {xx}=qb/to/wr/td/sf/cb.
+
+`GameNet/pretrained/ap_pred_final.th` as the pretrained weight of ScoreNet.
+
+After training is done you can see `GameNet/results` for results.

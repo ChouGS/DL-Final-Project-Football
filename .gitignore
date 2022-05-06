@@ -8,8 +8,9 @@
 *.pdf
 *.npy
 *.zip
-*raw_data*
 *.yaml
-!PredNet/config/attention.yaml
-!DeciNet/config/gat_small_att.yaml
-!PredNet/config/small_attention.yaml
+*/pretrained/*
+!GameNet/pretrained/ap_pred_final.th
+!GameNet/config/gat_small_att.yaml
+!ScoreNet/config/small_attention.yaml
+!beta_0.90.jpg

@@ -30,10 +30,6 @@ parser.add_argument("-oa", "--offensive_agent", help="[Optional] Decision agent 
                     choices=['CGT', 'DL'], default='CGT')
 parser.add_argument("-da", "--defensive_agent", help="[Optional] Decision agent for defenders, must be 'CGT' or 'DL'.", \
                     choices=['CGT', 'DL'], default='CGT')
-parser.add_argument("-opath", "--offensive_agent_path", help="[Optional] DL model path for offenders.", \
-                    type=str, default='algorithms/DL_model/off_gat_final.th')
-parser.add_argument("-dpath", "--defensive_agent_path", help="[Optional] DL model path for defenders.", \
-                    type=str, default='algorithms/DL_model/def_gat_final.th')
 parser.add_argument("-cpath", "--config_path", help="[Optional] Configuration path for initializing DL model.", \
                     type=str, default='algorithms/DL_model/config/gat_small_att.yaml')
 parser.add_argument("-l", "--log", help="Whether to write out log files", default=True)

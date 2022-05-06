@@ -3,6 +3,9 @@ import os
 from matplotlib import pyplot as plot
 
 def vis_distribution():
+    '''
+    See score label distribution
+    '''
     for root in os.listdir('raw_data'):
         if os.path.exists(os.path.join('raw_data', root, 'synthesized')):
             ap_data = np.load(os.path.join('raw_data', root, 'synthesized', 'data_after_passing.npy'))
